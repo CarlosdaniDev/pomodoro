@@ -175,4 +175,7 @@ footer {
         border-radius: 10px;
         width: 80vw;
     }
+    .ambience-control{
+        padding: 30px;
+    }
 }
