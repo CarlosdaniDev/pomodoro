@@ -1,5 +1,5 @@
 let timer;
-let timeLeft = 1 * 2;
+let timeLeft = 2 * 2; // Ajustado para o padrão (25min), mude para 5 para testes rápidos
 let isBreak = false;
 let isAmbiencePlaying = false;
 let pomodoroCount = parseInt(localStorage.getItem('totalPomodoros')) || 0;
@@ -21,12 +21,11 @@ const phrases = {
     ]
 };
 
-/* ── Função auxiliar — sempre pega o alarm do DOM na hora ── */
 function getAlarm() {
     return document.getElementById('alarm');
 }
 
-/* ── TOAST ── */
+/* ── TOAST (CORRIGIDO) ── */
 function showToast(type) {
     const toast = document.getElementById('toast');
     const icon  = document.getElementById('toast-icon');
@@ -59,22 +58,28 @@ function showToast(type) {
     };
 
     const c = configs[type];
-    icon.innerText  = c.icon;
-    title.innerText = c.title;
-    sub.innerText   = c.sub;
-    btn.innerText   = c.btn;
-    toast.className = c.cls;
+    if (icon) icon.innerText = c.icon;
+    if (title) title.innerText = c.title;
+    if (sub) sub.innerText = c.sub;
+    if (btn) btn.innerText = c.btn;
+    if (toast) toast.className = c.cls;
 }
 
 function dismissToast() {
-    const toast  = document.getElementById('toast');
-    const alarm  = getAlarm();
+    const toast = document.getElementById('toast');
+    const alarm = getAlarm();
+    const audioAmbiente = document.getElementById('ambienceAudio');
 
-    toast.classList.remove('toast--show');
+    if (toast) toast.classList.remove('toast--show');
 
     if (alarm) {
         alarm.pause();
         alarm.currentTime = 0;
+    }
+
+    // Restaura o volume da música ambiente ao fechar o toast
+    if (audioAmbiente && isAmbiencePlaying) {
+        audioAmbiente.volume = 0.1;
     }
 
     startTimer();
@@ -83,7 +88,7 @@ function dismissToast() {
 /* ── SOM AMBIENTE ── */
 function toggleAmbience() {
     const audioAmbiente = document.getElementById('ambienceAudio');
-    const botaoSom      = document.getElementById('bgMusicBtn');
+    const botaoSom = document.getElementById('bgMusicBtn');
 
     if (!isAmbiencePlaying) {
         audioAmbiente.load();
@@ -91,9 +96,7 @@ function toggleAmbience() {
             audioAmbiente.volume = 0.1;
             botaoSom.innerText = "🔊 SOM AMBIENTE: ON";
             isAmbiencePlaying = true;
-        }).catch(error => {
-            console.error("Erro ao carregar áudio:", error);
-        });
+        }).catch(error => console.error("Erro áudio:", error));
     } else {
         audioAmbiente.pause();
         botaoSom.innerText = "🔇 SOM AMBIENTE: OFF";
@@ -101,7 +104,7 @@ function toggleAmbience() {
     }
 }
 
-/* ── FRASE MOTIVACIONAL ── */
+/* ── FRASE ── */
 function updatePhrase(type) {
     const container = document.getElementById('message-container');
     if (!container) return;
@@ -111,30 +114,25 @@ function updatePhrase(type) {
     setTimeout(() => {
         container.innerText = `"${list[randomIndex]}"`;
         container.style.opacity = 1;
-        container.style.transition = "opacity 0.5s";
     }, 500);
 }
 
-/* ── TIMER ── */
+/* ── TIMER (LÓGICA CORRIGIDA) ── */
 function startTimer() {
     const alarm = getAlarm();
+    const audioAmbiente = document.getElementById('ambienceAudio');
 
     clearInterval(timer);
-
-    if (alarm) {
-        alarm.pause();
-        alarm.currentTime = 0;
-    }
 
     timer = setInterval(() => {
         if (timeLeft <= 0) {
             clearInterval(timer);
 
-            const alarm = getAlarm();
+            // Alarme toca e música abaixa
             if (alarm) {
-                alarm.volume = 1.0;
-                alarm.currentTime = 0;
-                alarm.play().catch(e => console.log("Erro ao tocar alarme:", e));
+                if (audioAmbiente) audioAmbiente.volume = 0.02; // Quase mudo
+                alarm.volume = 1.0; 
+                alarm.play().catch(e => console.log("Erro som:", e));
             }
 
             if (!isBreak) {
@@ -161,11 +159,8 @@ function startTimer() {
 
 function setFocus() {
     updatePhrase('focus');
-    clearInterval(timer);
     isBreak = false;
     timeLeft = 25 * 60;
-    const timerEl = document.getElementById('timer');
-    if (timerEl) timerEl.style.color = "#3b82f6";
     updateDisplay();
     updateTimerLabel();
 }
@@ -174,8 +169,6 @@ function setShortBreak() {
     updatePhrase('break');
     isBreak = true;
     timeLeft = 5 * 60;
-    const timerEl = document.getElementById('timer');
-    if (timerEl) timerEl.style.color = "#10b981";
     updateDisplay();
     updateTimerLabel();
 }
@@ -184,8 +177,6 @@ function setLongBreak() {
     updatePhrase('break');
     isBreak = true;
     timeLeft = 20 * 60;
-    const timerEl = document.getElementById('timer');
-    if (timerEl) timerEl.style.color = "#f59e0b";
     updateDisplay();
     updateTimerLabel();
 }
@@ -193,30 +184,26 @@ function setLongBreak() {
 function updateTimerLabel() {
     const label = document.getElementById('timer-label');
     if (!label) return;
-    if (isBreak) {
-        label.innerText = "MODO: DESCANSO";
-        label.style.color = "#10b981";
-    } else {
-        label.innerText = "MODO: FOCO";
-        label.style.color = "#3b82f6";
-    }
+    label.innerText = isBreak ? "MODO: DESCANSO" : "MODO: FOCO";
+    label.style.color = isBreak ? "#10b981" : "#3b82f6";
+    
+    const timerEl = document.getElementById('timer');
+    if (timerEl) timerEl.style.color = isBreak ? "#10b981" : "#3b82f6";
 }
 
 function updateStats() {
     const counterEl = document.getElementById('counter');
-    const xpBar     = document.getElementById('xp-bar');
-    const levelEl   = document.getElementById('level');
+    const xpBar = document.getElementById('xp-bar');
+    const levelEl = document.getElementById('level');
 
     localStorage.setItem('totalPomodoros', pomodoroCount);
 
-    if (counterEl) {
-        counterEl.innerHTML = `SESSÕES CONCLUÍDAS: <strong>#${pomodoroCount}</strong>`;
-    }
-
+    if (counterEl) counterEl.innerHTML = `SESSÕES CONCLUÍDAS: <strong>#${pomodoroCount}</strong>`;
+    
     const xpPorcentagem = (pomodoroCount % 10) * 10;
     const level = Math.floor(pomodoroCount / 10) + 1;
 
-    if (xpBar)   xpBar.style.width = xpPorcentagem + "%";
+    if (xpBar) xpBar.style.width = xpPorcentagem + "%";
     if (levelEl) levelEl.innerText = `NÍVEL: ${level}`;
 }
 
@@ -229,19 +216,11 @@ function updateDisplay() {
 }
 
 function resetTimer() {
-    const alarm = getAlarm();
-
     clearInterval(timer);
-
-    if (alarm) {
-        alarm.pause();
-        alarm.currentTime = 0;
-    }
-
-    timeLeft = isBreak
-        ? (pomodoroCount % 4 === 0 && pomodoroCount !== 0 ? 20 * 60 : 5 * 60)
-        : 25 * 60;
-
+    const alarm = getAlarm();
+    if (alarm) { alarm.pause(); alarm.currentTime = 0; }
+    
+    timeLeft = isBreak ? (pomodoroCount % 4 === 0 && pomodoroCount !== 0 ? 20 * 60 : 5 * 60) : 25 * 60;
     updateDisplay();
 }
 

@@ -128,7 +128,7 @@ footer {
     letter-spacing: 2px;
 }
 
-/* Notificação toast */
+/* Notificação toast corrigida para bater com o JS */
 #toast {
     position: fixed;
     bottom: 40px;
@@ -140,67 +140,31 @@ footer {
     padding: 18px 32px;
     text-align: center;
     z-index: 9999;
-    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     opacity: 0;
     min-width: 280px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+    /* Evita clicar sem querer quando invisível */
 }
 
-#toast.show {
+#toast.toast--show {
     transform: translateX(-50%) translateY(0);
     opacity: 1;
+    pointer-events: auto;
 }
 
-#toast .toast-icon {
-    font-size: 2rem;
-    margin-bottom: 8px;
+/* Cores dinâmicas dos botões dentro do toast */
+.toast--break .toast-btn {
+    background: #10b981 !important;
 }
 
-#toast .toast-title {
-    font-size: 1rem;
-    font-weight: 700;
-    letter-spacing: 2px;
-    margin-bottom: 4px;
+.toast--long .toast-btn {
+    background: #f59e0b !important;
 }
 
-#toast .toast-sub {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
-    letter-spacing: 1px;
-    margin-bottom: 16px;
-}
-
-#toast .toast-btn {
-    background: #3b82f6;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 24px;
-    font-weight: 700;
-    font-size: 0.8rem;
-    letter-spacing: 1px;
-    cursor: pointer;
-    transition: 0.2s;
-}
-
-#toast .toast-btn:hover {
-    background: #2563eb;
-}
-
-#toast.break-toast .toast-btn {
-    background: #10b981;
-}
-
-#toast.break-toast .toast-btn:hover {
-    background: #059669;
-}
-
-#toast.long-toast .toast-btn {
-    background: #f59e0b;
-}
-
-#toast.long-toast .toast-btn:hover {
-    background: #d97706;
+.toast--focus .toast-btn {
+    background: #3b82f6 !important;
 }
 
 /* --- ESTILO PARA CELULARES (Telas até 768px) --- */
