@@ -4,10 +4,23 @@ let isRunning = false;
 let isBreak = false;
 let isAmbiencePlaying = false;
 let pomodoroCount = parseInt(localStorage.getItem('totalPomodoros')) || 0;
+let wakeLock = null;
+
+async function requestWakeLock() {
+    try {
+        // Solicita ao sistema para manter a tela ligada
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log("Tela bloqueada: Ativo");
+        }
+    } catch (err) {
+        console.log("Erro no Wake Lock: ", err.message);
+    }
+}
 
 function startTimer() {
     if (isRunning) return;
-    
+    requestWakeLock();
     isRunning = true;
     // 1. Define o momento exato do fim baseado no tempo que restava
     const endTime = Date.now() + (timeLeft * 1000);
@@ -21,6 +34,7 @@ function startTimer() {
             // 2. O tempo acabou
             clearInterval(timer);
             isRunning = false;
+            releaseWakeLock();
             timeLeft = 0;
             localStorage.removeItem('pomodoroEndTime');
             updateDisplay();
@@ -253,11 +267,23 @@ function updateDisplay() {
 
 function resetTimer() {
     clearInterval(timer);
+    isRunning = false; 
+    releaseWakeLock();
+    localStorage.removeItem('pomodoroEndTime');
     const alarm = getAlarm();
+
     if (alarm) { alarm.pause(); alarm.currentTime = 0; }
     
     timeLeft = isBreak ? (pomodoroCount % 4 === 0 && pomodoroCount !== 0 ? 20 * 60 : 5 * 60) : 25 * 60;
     updateDisplay();
+}
+
+function releaseWakeLock() {
+    if (wakeLock !== null) {
+        wakeLock.release();
+        wakeLock = null;
+        console.log("Tela liberada");
+    }
 }
 
 window.onload = () => {
