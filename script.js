@@ -1,8 +1,85 @@
 let timer;
-let timeLeft = 2 * 2; // Ajustado para o padrão (25min), mude para 5 para testes rápidos
+let timeLeft = 25 * 60; 
+let isRunning = false;
 let isBreak = false;
 let isAmbiencePlaying = false;
 let pomodoroCount = parseInt(localStorage.getItem('totalPomodoros')) || 0;
+
+function startTimer() {
+    if (isRunning) return;
+    
+    isRunning = true;
+    // 1. Define o momento exato do fim baseado no tempo que restava
+    const endTime = Date.now() + (timeLeft * 1000);
+    localStorage.setItem('pomodoroEndTime', endTime);
+
+    timer = setInterval(() => {
+        const currentTime = Date.now();
+        const remaining = Math.round((endTime - currentTime) / 1000);
+
+        if (remaining <= 0) {
+            // 2. O tempo acabou
+            clearInterval(timer);
+            isRunning = false;
+            timeLeft = 0;
+            localStorage.removeItem('pomodoroEndTime');
+            updateDisplay();
+            
+            // Executa a finalização
+            handleTimerEnd();
+        } else {
+            // 3. Apenas atualiza o tempo restante
+            timeLeft = remaining;
+            updateDisplay();
+        }
+    }, 1000);
+}
+
+function updateDisplay() {
+    const minutes = Math.floor(timeLeft / 60);
+    const seconds = timeLeft % 60;
+    document.getElementById('timer').textContent = 
+        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+// Lógica para recuperar o tempo se a página for recarregada
+window.onload = () => {
+    const savedEndTime = localStorage.getItem('pomodoroEndTime');
+    if (savedEndTime) {
+        const remaining = Math.round((savedEndTime - Date.now()) / 1000);
+        if (remaining > 0) {
+            timeLeft = remaining;
+            startTimer(); // Retoma de onde parou
+        }
+    }
+};
+function handleTimerEnd() {
+    const alarm = getAlarm();
+    const audioAmbiente = document.getElementById('ambienceAudio');
+
+    // Tocar Alarme
+    if (alarm) {
+        if (audioAmbiente && isAmbiencePlaying) audioAmbiente.volume = 0.02;
+        alarm.volume = 1.0; 
+        alarm.play().catch(e => console.log("Erro som:", e));
+    }
+
+    // Lógica de Troca de Estado (Foco vs Pausa)
+    if (!isBreak) {
+        pomodoroCount++;
+        updateStats();
+        if (pomodoroCount % 4 === 0) {
+            setLongBreak();
+            showToast('long-break');
+        } else {
+            setShortBreak();
+            showToast('focus-done');
+        }
+    } else {
+        setFocus();
+        showToast('break-done');
+    }
+}
 
 const phrases = {
     focus: [
@@ -25,7 +102,6 @@ function getAlarm() {
     return document.getElementById('alarm');
 }
 
-/* ── TOAST (CORRIGIDO) ── */
 function showToast(type) {
     const toast = document.getElementById('toast');
     const icon  = document.getElementById('toast-icon');
@@ -117,46 +193,6 @@ function updatePhrase(type) {
     }, 500);
 }
 
-/* ── TIMER (LÓGICA CORRIGIDA) ── */
-function startTimer() {
-    const alarm = getAlarm();
-    const audioAmbiente = document.getElementById('ambienceAudio');
-
-    clearInterval(timer);
-
-    timer = setInterval(() => {
-        if (timeLeft <= 0) {
-            clearInterval(timer);
-
-            // Alarme toca e música abaixa
-            if (alarm) {
-                if (audioAmbiente) audioAmbiente.volume = 0.02; // Quase mudo
-                alarm.volume = 1.0; 
-                alarm.play().catch(e => console.log("Erro som:", e));
-            }
-
-            if (!isBreak) {
-                pomodoroCount++;
-                updateStats();
-                if (pomodoroCount % 4 === 0) {
-                    setLongBreak();
-                    showToast('long-break');
-                } else {
-                    setShortBreak();
-                    showToast('focus-done');
-                }
-            } else {
-                setFocus();
-                showToast('break-done');
-            }
-            return;
-        }
-
-        timeLeft--;
-        updateDisplay();
-    }, 1000);
-}
-
 function setFocus() {
     updatePhrase('focus');
     isBreak = false;
@@ -226,5 +262,19 @@ function resetTimer() {
 
 window.onload = () => {
     updateStats();
-    updateDisplay();
+    
+    const savedEndTime = localStorage.getItem('pomodoroEndTime');
+    if (savedEndTime) {
+        const remaining = Math.round((savedEndTime - Date.now()) / 1000);
+        if (remaining > 0) {
+            timeLeft = remaining;
+            isRunning = false; // Garante que startTimer possa iniciar
+            startTimer(); 
+        } else {
+            localStorage.removeItem('pomodoroEndTime');
+            updateDisplay();
+        }
+    } else {
+        updateDisplay();
+    }
 };
