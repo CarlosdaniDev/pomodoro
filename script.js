@@ -241,19 +241,32 @@ function resetTimer() {
     const timerEl = document.getElementById('timer');
     if (timerEl) timerEl.classList.remove('running');
 
-    const alarm = document.getElementById('alarm');
-    if (alarm) { alarm.pause(); alarm.currentTime = 0; }
-
     timeLeft = isBreak ? currentBreakDuration : cfg.focus * 60;
     updateDisplay();
 }
 
+function playAlarm() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        // Três bipes curtos
+        [0, 0.35, 0.7].forEach(offset => {
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0.001, ctx.currentTime + offset);
+            gain.gain.linearRampToValueAtTime(0.6, ctx.currentTime + offset + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.28);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + offset);
+            osc.stop(ctx.currentTime + offset + 0.3);
+        });
+        setTimeout(() => ctx.close(), 2000);
+    } catch(e) { console.log('Alarm error:', e); }
+}
+
 function handleTimerEnd() {
-    const alarm = document.getElementById('alarm');
-    if (alarm) {
-        alarm.volume = 1.0;
-        alarm.play().catch(e => console.log("Erro som:", e));
-    }
+    playAlarm();
 
     if (!isBreak) {
         pomodoroCount++;
@@ -380,11 +393,7 @@ function showToast(type) {
 
 function dismissToast() {
     const toast = document.getElementById('toast');
-    const alarm = document.getElementById('alarm');
-
     if (toast) toast.classList.remove('toast--show');
-    if (alarm) { alarm.pause(); alarm.currentTime = 0; }
-
     startTimer();
 }
 

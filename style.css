@@ -370,6 +370,20 @@ footer a:hover {
     opacity: 0.4;
 }
 
+.config-feedback {
+    display: inline-block;
+    margin-left: 10px;
+    font-size: 0.8rem;
+    color: var(--accent);
+    letter-spacing: 1px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.config-feedback.visible {
+    opacity: 1;
+}
+
 /* ── BOTÃO PERIGO ── */
 button.btn-danger {
     border-color: #ef4444;
