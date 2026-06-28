@@ -1,26 +1,55 @@
 /* ─────────────────────────────────────────
+   CONFIGURAÇÕES (padrão)
+───────────────────────────────────────── */
+let cfg = loadConfig();
+
+function loadConfig() {
+    const saved = localStorage.getItem('pomodoroConfig');
+    if (saved) return JSON.parse(saved);
+    return { focus: 25, short: 5, long: 20 };
+}
+
+function applyConfig() {
+    const focus = parseInt(document.getElementById('cfg-focus').value) || 25;
+    const short = parseInt(document.getElementById('cfg-short').value) || 5;
+    const long  = parseInt(document.getElementById('cfg-long').value)  || 20;
+
+    cfg = { focus, short, long };
+    localStorage.setItem('pomodoroConfig', JSON.stringify(cfg));
+
+    // Só reinicia o display se o timer não estiver rodando
+    if (!isRunning) {
+        timeLeft = isBreak ? (currentBreakDuration === cfg.long * 60 ? cfg.long * 60 : cfg.short * 60) : cfg.focus * 60;
+        if (!isBreak) timeLeft = cfg.focus * 60;
+        updateDisplay();
+        showConfigToast();
+    } else {
+        showConfigToast();
+    }
+}
+
+function showConfigToast() {
+    const el = document.getElementById('config-feedback');
+    if (!el) return;
+    el.classList.add('visible');
+    setTimeout(() => el.classList.remove('visible'), 2000);
+}
+
+/* ─────────────────────────────────────────
    ESTADO GLOBAL
 ───────────────────────────────────────── */
-let timer           = null;
-let timeLeft        = 25 * 60;
-let isRunning       = false;
-let isBreak         = false;
-let currentBreakDuration = 5 * 60; // Guarda o tipo de pausa atual
-let isAmbiencePlaying    = false;
-let pomodoroCount   = parseInt(localStorage.getItem('totalPomodoros')) || 0;
-let wakeLock        = null;
+let timer                = null;
+let timeLeft             = cfg.focus * 60;
+let isRunning            = false;
+let isBreak              = false;
+let currentBreakDuration = cfg.short * 60;
+let pomodoroCount        = parseInt(localStorage.getItem('totalPomodoros')) || 0;
+let wakeLock             = null;
 
 const LEVEL_TITLES = [
-    "Iniciante",        // 1
-    "Aprendiz",         // 2
-    "Focado",           // 3
-    "Determinado",      // 4
-    "Digital Architect",// 5
-    "Estrategista",     // 6
-    "Especialista",     // 7
-    "Mestre do Foco",   // 8
-    "Elite",            // 9
-    "Lendário"          // 10+
+    "Iniciante", "Aprendiz", "Focado", "Determinado",
+    "Digital Architect", "Estrategista", "Especialista",
+    "Mestre do Foco", "Elite", "Lendário"
 ];
 
 const phrases = {
@@ -41,12 +70,78 @@ const phrases = {
 };
 
 /* ─────────────────────────────────────────
+   HISTÓRICO DO DIA
+───────────────────────────────────────── */
+function getTodayKey() {
+    const d = new Date();
+    return `pomodoro-${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function getTodayCount() {
+    return parseInt(localStorage.getItem(getTodayKey())) || 0;
+}
+
+function incrementTodayCount() {
+    const key = getTodayKey();
+    const current = getTodayCount();
+    localStorage.setItem(key, current + 1);
+}
+
+function updateTodayDisplay() {
+    const el = document.getElementById('today-counter');
+    if (el) el.innerHTML = `HOJE: <strong>${getTodayCount()}</strong>`;
+}
+
+/* ─────────────────────────────────────────
+   NOTIFICAÇÕES DO SISTEMA
+───────────────────────────────────────── */
+function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+}
+
+function sendNotification(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, {
+            body,
+            icon: 'https://em-content.zobj.net/source/apple/354/tomato_1f345.png',
+            silent: false
+        });
+    }
+}
+
+/* ─────────────────────────────────────────
+   TÍTULO DA ABA
+───────────────────────────────────────── */
+function updateTabTitle() {
+    if (!isRunning) {
+        document.title = 'Concentração e Foco';
+        return;
+    }
+    const min = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+    const sec = (timeLeft % 60).toString().padStart(2, '0');
+    const mode = isBreak ? 'Descanso' : 'Foco';
+    document.title = `⏱ ${min}:${sec} — ${mode}`;
+}
+
+/* ─────────────────────────────────────────
    INICIALIZAÇÃO
 ───────────────────────────────────────── */
 window.onload = () => {
-    updateStats();
-    updateDisplay();
+    // Aplica config salva nos inputs
+    document.getElementById('cfg-focus').value = cfg.focus;
+    document.getElementById('cfg-short').value = cfg.short;
+    document.getElementById('cfg-long').value  = cfg.long;
 
+    timeLeft = cfg.focus * 60;
+
+    updateStats();
+    updateTodayDisplay();
+    updateDisplay();
+    requestNotificationPermission();
+
+    // Retoma timer se a página foi recarregada com timer ativo
     const savedEndTime = localStorage.getItem('pomodoroEndTime');
     if (savedEndTime) {
         const remaining = Math.round((savedEndTime - Date.now()) / 1000);
@@ -58,12 +153,12 @@ window.onload = () => {
         }
     }
 
-    // Page Visibility API: recalcula tempo ao voltar para a aba
+    // Page Visibility API
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && isRunning) {
-            const savedEndTime = localStorage.getItem('pomodoroEndTime');
-            if (savedEndTime) {
-                const remaining = Math.round((savedEndTime - Date.now()) / 1000);
+            const saved = localStorage.getItem('pomodoroEndTime');
+            if (saved) {
+                const remaining = Math.round((saved - Date.now()) / 1000);
                 if (remaining > 0) {
                     timeLeft = remaining;
                     updateDisplay();
@@ -99,12 +194,14 @@ function startTimer() {
             localStorage.removeItem('pomodoroEndTime');
             releaseWakeLock();
             updateDisplay();
+            updateTabTitle();
             updateStartPauseBtn();
             if (timerEl) timerEl.classList.remove('running');
             handleTimerEnd();
         } else {
             timeLeft = remaining;
             updateDisplay();
+            updateTabTitle();
         }
     }, 1000);
 }
@@ -117,23 +214,19 @@ function pauseTimer() {
     localStorage.removeItem('pomodoroEndTime');
     releaseWakeLock();
     updateStartPauseBtn();
+    updateTabTitle();
 
     const timerEl = document.getElementById('timer');
     if (timerEl) timerEl.classList.remove('running');
 }
 
 function toggleStartPause() {
-    if (isRunning) {
-        pauseTimer();
-    } else {
-        startTimer();
-    }
+    isRunning ? pauseTimer() : startTimer();
 }
 
 function updateStartPauseBtn() {
     const btn = document.getElementById('startPauseBtn');
-    if (!btn) return;
-    btn.textContent = isRunning ? '⏸ PAUSAR' : '▶ INICIAR';
+    if (btn) btn.textContent = isRunning ? '⏸ PAUSAR' : '▶ INICIAR';
 }
 
 function resetTimer() {
@@ -143,6 +236,7 @@ function resetTimer() {
     localStorage.removeItem('pomodoroEndTime');
     releaseWakeLock();
     updateStartPauseBtn();
+    updateTabTitle();
 
     const timerEl = document.getElementById('timer');
     if (timerEl) timerEl.classList.remove('running');
@@ -150,34 +244,36 @@ function resetTimer() {
     const alarm = document.getElementById('alarm');
     if (alarm) { alarm.pause(); alarm.currentTime = 0; }
 
-    // Usa a variável correta de duração da pausa atual
-    timeLeft = isBreak ? currentBreakDuration : 25 * 60;
+    timeLeft = isBreak ? currentBreakDuration : cfg.focus * 60;
     updateDisplay();
 }
 
 function handleTimerEnd() {
     const alarm = document.getElementById('alarm');
-    const audioAmbiente = document.getElementById('ambienceAudio');
-
     if (alarm) {
-        if (audioAmbiente && isAmbiencePlaying) audioAmbiente.volume = 0.02;
         alarm.volume = 1.0;
         alarm.play().catch(e => console.log("Erro som:", e));
     }
 
     if (!isBreak) {
         pomodoroCount++;
+        incrementTodayCount();
         updateStats();
+        updateTodayDisplay();
+
         if (pomodoroCount % 4 === 0) {
             setLongBreak();
             showToast('long-break');
+            sendNotification('🏆 Ciclo completo!', '4 sessões encerradas. Pausa longa merecida.');
         } else {
             setShortBreak();
             showToast('focus-done');
+            sendNotification('🎯 Sessão concluída!', 'Hora de respirar. Você merece.');
         }
     } else {
         setFocus();
         showToast('break-done');
+        sendNotification('⚡ Descanso encerrado!', 'Foco máximo. Vamos lá.');
     }
 }
 
@@ -187,7 +283,7 @@ function handleTimerEnd() {
 function setFocus() {
     updatePhrase('focus');
     isBreak = false;
-    timeLeft = 25 * 60;
+    timeLeft = cfg.focus * 60;
     updateDisplay();
     updateTimerLabel();
 }
@@ -195,7 +291,7 @@ function setFocus() {
 function setShortBreak() {
     updatePhrase('break');
     isBreak = true;
-    currentBreakDuration = 5 * 60;
+    currentBreakDuration = cfg.short * 60;
     timeLeft = currentBreakDuration;
     updateDisplay();
     updateTimerLabel();
@@ -204,22 +300,18 @@ function setShortBreak() {
 function setLongBreak() {
     updatePhrase('break');
     isBreak = true;
-    currentBreakDuration = 20 * 60;
+    currentBreakDuration = cfg.long * 60;
     timeLeft = currentBreakDuration;
     updateDisplay();
     updateTimerLabel();
 }
 
 function updateTimerLabel() {
-    const label = document.getElementById('timer-label');
+    const label   = document.getElementById('timer-label');
     const timerEl = document.getElementById('timer');
-    if (label) {
-        label.innerText = isBreak ? "MODO: DESCANSO" : "MODO: FOCO";
-        label.style.color = isBreak ? "#10b981" : "#3b82f6";
-    }
-    if (timerEl) {
-        timerEl.style.color = isBreak ? "#10b981" : "#3b82f6";
-    }
+    const color   = isBreak ? '#10b981' : '#3b82f6';
+    if (label)   { label.innerText = isBreak ? 'MODO: DESCANSO' : 'MODO: FOCO'; label.style.color = color; }
+    if (timerEl) timerEl.style.color = color;
 }
 
 /* ─────────────────────────────────────────
@@ -228,16 +320,16 @@ function updateTimerLabel() {
 function updateDisplay() {
     const timerEl = document.getElementById('timer');
     if (!timerEl) return;
-    const min = Math.floor(timeLeft / 60);
-    const sec = timeLeft % 60;
-    timerEl.innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    const min = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+    const sec = (timeLeft % 60).toString().padStart(2, '0');
+    timerEl.innerText = `${min}:${sec}`;
 }
 
 function updatePhrase(type) {
     const container = document.getElementById('message-container');
     if (!container) return;
     const list = phrases[type];
-    const idx = Math.floor(Math.random() * list.length);
+    const idx  = Math.floor(Math.random() * list.length);
     container.style.opacity = 0;
     setTimeout(() => {
         container.innerText = `"${list[idx]}"`;
@@ -256,10 +348,9 @@ function updateStats() {
 
     const xpPercent = (pomodoroCount % 10) * 10;
     const levelNum  = Math.floor(pomodoroCount / 10) + 1;
-    const titleIdx  = Math.min(levelNum - 1, LEVEL_TITLES.length - 1);
-    const title     = LEVEL_TITLES[titleIdx];
+    const title     = LEVEL_TITLES[Math.min(levelNum - 1, LEVEL_TITLES.length - 1)];
 
-    if (xpBar)   xpBar.style.width = xpPercent + "%";
+    if (xpBar)   xpBar.style.width = xpPercent + '%';
     if (levelEl) levelEl.innerText = `NÍVEL: ${levelNum} — ${title}`;
 }
 
@@ -274,27 +365,9 @@ function showToast(type) {
     const btn   = document.getElementById('toast-btn');
 
     const configs = {
-        'focus-done': {
-            icon: '🎯',
-            title: 'SESSÃO CONCLUÍDA!',
-            sub: 'Hora de respirar. Você merece.',
-            btn: '▶ INICIAR DESCANSO',
-            cls: 'toast toast--break toast--show'
-        },
-        'long-break': {
-            icon: '🏆',
-            title: 'CICLO COMPLETO!',
-            sub: '4 sessões encerradas. Pausa longa ativada.',
-            btn: '☕ INICIAR PAUSA LONGA',
-            cls: 'toast toast--long toast--show'
-        },
-        'break-done': {
-            icon: '⚡',
-            title: 'DESCANSO ENCERRADO!',
-            sub: 'Foco máximo. Vamos lá.',
-            btn: '🔥 VOLTAR AO FOCO',
-            cls: 'toast toast--focus toast--show'
-        }
+        'focus-done': { icon: '🎯', title: 'SESSÃO CONCLUÍDA!',   sub: 'Hora de respirar. Você merece.',         btn: '▶ INICIAR DESCANSO',  cls: 'toast toast--break toast--show' },
+        'long-break': { icon: '🏆', title: 'CICLO COMPLETO!',      sub: '4 sessões encerradas. Pausa longa.',      btn: '☕ INICIAR PAUSA LONGA', cls: 'toast toast--long toast--show'  },
+        'break-done': { icon: '⚡', title: 'DESCANSO ENCERRADO!',  sub: 'Foco máximo. Vamos lá.',                 btn: '🔥 VOLTAR AO FOCO',   cls: 'toast toast--focus toast--show' }
     };
 
     const c = configs[type];
@@ -308,36 +381,11 @@ function showToast(type) {
 function dismissToast() {
     const toast = document.getElementById('toast');
     const alarm = document.getElementById('alarm');
-    const audioAmbiente = document.getElementById('ambienceAudio');
 
     if (toast) toast.classList.remove('toast--show');
-
     if (alarm) { alarm.pause(); alarm.currentTime = 0; }
 
-    if (audioAmbiente && isAmbiencePlaying) audioAmbiente.volume = 0.1;
-
     startTimer();
-}
-
-/* ─────────────────────────────────────────
-   SOM AMBIENTE
-───────────────────────────────────────── */
-function toggleAmbience() {
-    const audioAmbiente = document.getElementById('ambienceAudio');
-    const botaoSom      = document.getElementById('bgMusicBtn');
-
-    if (!isAmbiencePlaying) {
-        audioAmbiente.load();
-        audioAmbiente.play().then(() => {
-            audioAmbiente.volume = 0.1;
-            botaoSom.innerText = "🔊 SOM AMBIENTE: ON";
-            isAmbiencePlaying = true;
-        }).catch(error => console.error("Erro áudio:", error));
-    } else {
-        audioAmbiente.pause();
-        botaoSom.innerText = "🔇 SOM AMBIENTE: OFF";
-        isAmbiencePlaying = false;
-    }
 }
 
 /* ─────────────────────────────────────────
@@ -356,7 +404,9 @@ function closeResetModal() {
 function confirmResetSessions() {
     pomodoroCount = 0;
     localStorage.removeItem('totalPomodoros');
+    localStorage.removeItem(getTodayKey());
     updateStats();
+    updateTodayDisplay();
     closeResetModal();
 }
 
@@ -365,17 +415,12 @@ function confirmResetSessions() {
 ───────────────────────────────────────── */
 async function requestWakeLock() {
     try {
-        if ('wakeLock' in navigator) {
-            wakeLock = await navigator.wakeLock.request('screen');
-        }
+        if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
     } catch (err) {
-        console.log("Wake Lock error:", err.message);
+        console.log('Wake Lock error:', err.message);
     }
 }
 
 function releaseWakeLock() {
-    if (wakeLock !== null) {
-        wakeLock.release();
-        wakeLock = null;
-    }
+    if (wakeLock !== null) { wakeLock.release(); wakeLock = null; }
 }

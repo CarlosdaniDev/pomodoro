@@ -172,11 +172,6 @@ article h2 {
     margin-top: 0;
 }
 
-/* ── SOM AMBIENTE ── */
-.ambience-control {
-    padding: 10px;
-    text-align: center;
-}
 
 /* ── TOAST ── */
 #toast {
@@ -296,15 +291,83 @@ footer a:hover {
         width: 85vw;
     }
 
-    .ambience-control {
-        padding: 15px;
-    }
-
     #toast {
         width: 85vw;
         min-width: unset;
         padding: 16px 20px;
     }
+}
+
+/* ── HOJE ── */
+#today-counter {
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    color: #10b981;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+/* ── PAINEL DE CONFIGURAÇÕES ── */
+.config-panel {
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 1.2rem 1.8rem;
+    width: 90%;
+    max-width: 500px;
+    margin: 0 auto 10px;
+    text-align: center;
+}
+
+.config-title {
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    color: #64748b;
+    margin-bottom: 12px;
+    font-weight: bold;
+}
+
+.config-grid {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.config-grid label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    letter-spacing: 1px;
+}
+
+.config-grid input[type="number"] {
+    width: 64px;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #f8fafc;
+    font-size: 1rem;
+    font-weight: bold;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.config-grid input[type="number"]:focus {
+    border-color: var(--primary);
+}
+
+/* Remove setas do input number */
+.config-grid input[type="number"]::-webkit-inner-spin-button,
+.config-grid input[type="number"]::-webkit-outer-spin-button {
+    opacity: 0.4;
 }
 
 /* ── BOTÃO PERIGO ── */

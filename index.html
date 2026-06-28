@@ -26,12 +26,33 @@
         </div>
 
         <div class="xp-container">
-            <div id="level">NÍVEL: 1</div>
+            <div id="level">NÍVEL: 1 — Iniciante</div>
             <div id="counter">SESSÕES CONCLUÍDAS: <strong>#0</strong></div>
+            <div id="today-counter">HOJE: <strong>0</strong></div>
             <div id="barra">
                 <div id="xp-bar"></div>
             </div>
         </div>
+    </div>
+
+    <!-- Painel de configurações -->
+    <div class="config-panel">
+        <div class="config-title">⚙ CONFIGURAÇÕES</div>
+        <div class="config-grid">
+            <label>
+                <span>Foco (min)</span>
+                <input type="number" id="cfg-focus" value="25" min="1" max="90">
+            </label>
+            <label>
+                <span>Pausa curta (min)</span>
+                <input type="number" id="cfg-short" value="5" min="1" max="30">
+            </label>
+            <label>
+                <span>Pausa longa (min)</span>
+                <input type="number" id="cfg-long" value="20" min="5" max="60">
+            </label>
+        </div>
+        <button onclick="applyConfig()">✔ APLICAR</button>
     </div>
 
     <div id="message-container">
@@ -45,18 +66,11 @@
             Simples, eficaz e comprovado contra procrastinação e fadiga mental.</p>
     </article>
 
-    <div class="ambience-control">
-        <button id="bgMusicBtn" onclick="toggleAmbience()">
-            🔇 SOM AMBIENTE: OFF
-        </button>
-        <audio id="ambienceAudio" loop>
-            <source src="https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg" type="audio/ogg">
-        </audio>
-        <audio id="alarm">
-            <source src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" type="audio/ogg">
-        </audio>
-    </div>
+    <audio id="alarm">
+        <source src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" type="audio/ogg">
+    </audio>
 
+    <!-- Toast -->
     <div id="toast">
         <div class="toast-icon" id="toast-icon"></div>
         <div class="toast-title" id="toast-title"></div>
