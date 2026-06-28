@@ -6,14 +6,16 @@
     --glass: rgba(30, 41, 59, 0.7);
 }
 
-body {
+* {
+    box-sizing: border-box;
+}
 
-    background: linear-gradient(rgba(15, 23, 42, 0.362), rgba(15, 23, 42, 0.34)),
+body {
+    background: linear-gradient(rgba(15, 23, 42, 0.36), rgba(15, 23, 42, 0.34)),
         url('https://png.pngtree.com/background/20240824/original/pngtree-luxury-car-parked-in-front-of-a-contemporary-masterpiece-a-stunning-picture-image_10222969.jpg');
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
-    /* Mantém o fundo parado ao rolar */
     margin: 0;
     padding: 0;
     font-family: 'Segoe UI', Roboto, sans-serif;
@@ -36,6 +38,7 @@ header h1 {
     text-align: center;
 }
 
+/* ── DASHBOARD ── */
 .dashboard {
     background: var(--glass);
     backdrop-filter: blur(12px);
@@ -49,14 +52,7 @@ header h1 {
     margin: 20px auto;
 }
 
-h2 {
-    color: #fff;
-}
-
-p {
-    color: #fff;
-}
-
+/* ── TIMER ── */
 .timer-display {
     font-size: 6rem;
     font-weight: 800;
@@ -64,6 +60,31 @@ p {
     margin: 15px 0;
     text-shadow: 0 0 20px var(--primary);
     color: var(--primary);
+    transition: color 0.5s ease;
+}
+
+/* Pulsar suave quando rodando */
+.timer-display.running {
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { text-shadow: 0 0 20px var(--primary); }
+    50%       { text-shadow: 0 0 40px var(--primary), 0 0 60px var(--primary); }
+}
+
+.mode-label {
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+/* ── CONTROLES ── */
+.controls {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0;
 }
 
 button {
@@ -74,16 +95,38 @@ button {
     border-radius: 8px;
     font-weight: bold;
     cursor: pointer;
-    transition: 0.3s;
+    transition: background 0.3s, box-shadow 0.3s, transform 0.2s;
     text-transform: uppercase;
-    margin: 5px;
 }
 
 button:hover {
     background: var(--primary);
-    color: white;
+    color: #0f172a;
     box-shadow: 0 0 20px var(--primary);
     transform: translateY(-2px);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+/* ── XP / STATS ── */
+.xp-container {
+    margin-top: 15px;
+}
+
+#level {
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    color: #94a3b8;
+    margin-bottom: 4px;
+}
+
+#counter {
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    color: #94a3b8;
+    margin-bottom: 8px;
 }
 
 #barra {
@@ -92,7 +135,6 @@ button:hover {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 20px;
     overflow: hidden;
-    margin-top: 15px;
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -104,48 +146,55 @@ button:hover {
     transition: width 0.5s ease-in-out;
 }
 
+/* ── FRASE ── */
+#message-container {
+    max-width: 500px;
+    padding: 20px;
+    text-align: center;
+    line-height: 1.6;
+    color: #94a3b8;
+    font-style: italic;
+    transition: opacity 0.5s ease;
+}
+
+/* ── ARTIGO ── */
 article {
-    max-width: 600px;
+    max-width: 500px;
+    width: 90%;
     padding: 20px;
     text-align: center;
     line-height: 1.6;
     color: #94a3b8;
 }
 
+article h2 {
+    color: #fff;
+    margin-top: 0;
+}
+
+/* ── SOM AMBIENTE ── */
 .ambience-control {
     padding: 10px;
+    text-align: center;
 }
 
-footer {
-    margin-top: auto;
-    padding: 20px;
-    font-size: 0.8rem;
-    color: #64748b;
-}
-
-.mode-label {
-    font-weight: bold;
-    letter-spacing: 2px;
-}
-
-/* Notificação toast corrigida para bater com o JS */
+/* ── TOAST ── */
 #toast {
     position: fixed;
     bottom: 40px;
     left: 50%;
-    transform: translateX(-50%) translateY(100px);
+    transform: translateX(-50%) translateY(120px);
     background: #1e2130;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
     padding: 18px 32px;
     text-align: center;
     z-index: 9999;
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease;
     opacity: 0;
     min-width: 280px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     pointer-events: none;
-    /* Evita clicar sem querer quando invisível */
 }
 
 #toast.toast--show {
@@ -154,76 +203,206 @@ footer {
     pointer-events: auto;
 }
 
-/* Cores dinâmicas dos botões dentro do toast */
-.toast--break .toast-btn {
-    background: #10b981 !important;
+.toast-icon {
+    font-size: 2rem;
+    margin-bottom: 6px;
 }
 
-.toast--long .toast-btn {
-    background: #f59e0b !important;
+.toast-title {
+    font-weight: bold;
+    letter-spacing: 1px;
+    font-size: 1rem;
+    margin-bottom: 4px;
 }
 
-.toast--focus .toast-btn {
-    background: #3b82f6 !important;
+.toast-sub {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-bottom: 14px;
 }
 
-/* --- ESTILO PARA CELULARES (Telas até 768px) --- */
+.toast-btn {
+    border: none !important;
+    color: #fff !important;
+    padding: 10px 24px !important;
+    border-radius: 8px !important;
+    font-weight: bold !important;
+    width: auto !important;
+}
+
+.toast--break  .toast-btn { background: #10b981 !important; }
+.toast--long   .toast-btn { background: #f59e0b !important; }
+.toast--focus  .toast-btn { background: #3b82f6 !important; }
+
+/* ── FOOTER ── */
+footer {
+    margin-top: auto;
+    padding: 20px;
+    font-size: 0.8rem;
+    color: #64748b;
+    text-align: center;
+}
+
+footer a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
+/* ── MOBILE ── */
 @media screen and (max-width: 700px) {
     header {
-        width: 80vw;
+        width: 85vw;
     }
 
     header h1 {
-        font-size: 8vw;
+        font-size: 7vw;
+        letter-spacing: 3px;
     }
 
     body {
-        /* Remove o 'fixed' que causa o tremor no mobile */
-        background-attachment: scroll !important;
-
-        /* Opcional: Centraliza melhor a imagem no celular */
+        background-attachment: scroll;
         background-position: 40% center;
     }
 
-    /* Ajusta o tamanho do cronômetro para não vazar */
     .timer-display {
-        font-size: 4.5rem !important;
+        font-size: 4.5rem;
         letter-spacing: -2px;
     }
 
-    /* Faz os botões ficarem um embaixo do outro (melhor para o polegar) */
     .controls {
-        display: flex;
         flex-direction: column;
-        gap: 10px;
         align-items: center;
     }
 
-    button {
+    .controls button {
         width: 100%;
-        max-width: 250px;
-        margin: 0 !important;
+        max-width: 260px;
     }
 
-    /* Diminui o recuo do painel para ganhar espaço */
     .dashboard {
-        padding: 1.5rem !important;
-        width: 60% !important;
-
+        padding: 1.5rem;
+        width: 85%;
     }
 
-
-    /* Texto explicativo menor */
     article {
         font-size: 0.9rem;
         padding: 10px;
-        background: rgba(0, 0, 0, 0.099);
-        /* Ajuda na leitura sobre o fundo */
+        background: rgba(0, 0, 0, 0.1);
         border-radius: 10px;
-        width: 80vw;
+        width: 85vw;
     }
 
     .ambience-control {
-        padding: 30px;
+        padding: 15px;
+    }
+
+    #toast {
+        width: 85vw;
+        min-width: unset;
+        padding: 16px 20px;
+    }
+}
+
+/* ── BOTÃO PERIGO ── */
+button.btn-danger {
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+button.btn-danger:hover {
+    background: #ef4444;
+    color: #fff;
+    box-shadow: 0 0 20px #ef4444;
+}
+
+/* ── MODAL ── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.modal--show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.modal {
+    background: #1e2130;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 2rem 2.5rem;
+    text-align: center;
+    max-width: 360px;
+    width: 90%;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+    transform: scale(0.9);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.modal-overlay.modal--show .modal {
+    transform: scale(1);
+}
+
+.modal-icon {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.modal-title {
+    font-weight: bold;
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+    color: #f8fafc;
+}
+
+.modal-sub {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.modal-btn-cancel {
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #94a3b8;
+}
+
+.modal-btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    box-shadow: none;
+}
+
+.modal-btn-confirm {
+    min-width: 110px;
+}
+
+/* ── REDUCED MOTION ── */
+@media (prefers-reduced-motion: reduce) {
+    .timer-display.running {
+        animation: none;
+    }
+    * {
+        transition-duration: 0.01ms !important;
     }
 }

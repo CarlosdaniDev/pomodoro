@@ -1,16 +1,12 @@
 <!DOCTYPE html>
-<html lang="pt-br">
-
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="mobile-web-app-capable" content="yes">
-    <title>Pomodoro | Terminal de Estudos</title>
+    <title>Concentração e Foco</title>
     <link rel="shortcut icon" href="img/biblioteca-de-livros-de-texto-icone-isolado.png" type="image/x-icon">
     <link rel="stylesheet" href="style.css">
-
 </head>
-
 <body>
 
     <header>
@@ -20,59 +16,71 @@
     <div class="dashboard">
         <div class="timer-section">
             <div id="timer-label" class="mode-label">MODO: FOCO</div>
-
             <div class="timer-display" id="timer">25:00</div>
         </div>
-        <div class="timer-section">
-            <div class="controls">
-                <button onclick="startTimer()">INICIAR SEÇÃO</button>
-                <button onclick="resetTimer()">RESETAR</button>
-            </div>
+
+        <div class="controls">
+            <button id="startPauseBtn" onclick="toggleStartPause()">▶ INICIAR</button>
+            <button onclick="resetTimer()">↺ RESETAR</button>
+            <button class="btn-danger" onclick="openResetModal()">🗑 ZERAR SESSÕES</button>
         </div>
 
         <div class="xp-container">
-            <div id="level">NÍVEL: 1 (Digital Architect)</div>
+            <div id="level">NÍVEL: 1</div>
+            <div id="counter">SESSÕES CONCLUÍDAS: <strong>#0</strong></div>
             <div id="barra">
                 <div id="xp-bar"></div>
             </div>
         </div>
     </div>
-    <article>
-        <h2>Oque é a Técnica POMODORO?</h2>
-        <p id="pomo">A Técnica Pomodoro é um método de gestão de tempo que aumenta a produtividade ao dividir o trabalho
-            em blocos focados de 25 minutos (chamados de "pomodoros"), separados por pausas curtas de 5 minutos. Após
-            quatro ciclos, faz-se uma pausa mais longa de 15 a 30 minutos. Ela combate a procrastinação e a fadiga
-            mental.</p>
-    </article>
-    <div id="counter">
-        POMODOROS: 0
-    </div>
+
     <div id="message-container">
         "Prepare-se para o próximo nível."
     </div>
+
+    <article>
+        <h2>O que é a Técnica POMODORO?</h2>
+        <p>A Técnica Pomodoro divide o trabalho em blocos de 25 minutos separados por pausas curtas de 5 minutos.
+            Após quatro ciclos, você ganha uma pausa longa de 20 minutos.
+            Simples, eficaz e comprovado contra procrastinação e fadiga mental.</p>
+    </article>
+
     <div class="ambience-control">
         <button id="bgMusicBtn" onclick="toggleAmbience()">
-            🔊 SOM AMBIENTE: OFF
+            🔇 SOM AMBIENTE: OFF
         </button>
-
         <audio id="ambienceAudio" loop>
             <source src="https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg" type="audio/ogg">
         </audio>
-
         <audio id="alarm">
             <source src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" type="audio/ogg">
         </audio>
     </div>
+
     <div id="toast">
-    <div class="toast-icon" id="toast-icon"></div>
-    <div class="toast-title" id="toast-title"></div>
-    <div class="toast-sub" id="toast-sub"></div>
-    <button class="toast-btn" id="toast-btn" onclick="dismissToast()"></button>
-</div>
+        <div class="toast-icon" id="toast-icon"></div>
+        <div class="toast-title" id="toast-title"></div>
+        <div class="toast-sub" id="toast-sub"></div>
+        <button class="toast-btn" id="toast-btn" onclick="dismissToast()"></button>
+    </div>
+
+    <!-- Modal de confirmação de reset -->
+    <div id="modal-overlay" class="modal-overlay" onclick="closeResetModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-icon">⚠️</div>
+            <div class="modal-title">ZERAR PROGRESSO?</div>
+            <div class="modal-sub">Todas as sessões serão apagadas e você voltará ao nível 1. Essa ação não pode ser desfeita.</div>
+            <div class="modal-actions">
+                <button class="modal-btn-cancel" onclick="closeResetModal()">CANCELAR</button>
+                <button class="modal-btn-confirm btn-danger" onclick="confirmResetSessions()">SIM, ZERAR</button>
+            </div>
+        </div>
+    </div>
+
     <footer>
-        Criado: 2026 | <a href="https://github.com/CarlosdaniDev" target="_blank">CarlosDaniDev</a> - ADS_Dev_Uninter
+        Criado: 2026 | <a href="https://github.com/CarlosdaniDev" target="_blank">CarlosDaniDev</a> — ADS_Dev_Uninter
     </footer>
+
     <script src="script.js"></script>
 </body>
-
 </html>
