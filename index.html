@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Cronômetro Pomodoro com gamificação por XP/nível, sons ambiente e persistência de progresso no navegador.">
+    <meta name="theme-color" content="#0f172a">
     <title>Concentração e Foco</title>
     <link rel="shortcut icon" href="img/biblioteca-de-livros-de-texto-icone-isolado.png" type="image/x-icon">
     <link rel="stylesheet" href="style.css">
@@ -16,13 +18,14 @@
     <div class="dashboard">
         <div class="timer-section">
             <div id="timer-label" class="mode-label">MODO: FOCO</div>
-            <div class="timer-display" id="timer">25:00</div>
+            <!-- aria-live: leitores de tela anunciam a contagem sem precisar que o usuário fique consultando -->
+            <div class="timer-display" id="timer" aria-live="polite" aria-atomic="true">25:00</div>
         </div>
 
         <div class="controls">
-            <button id="startPauseBtn" onclick="toggleStartPause()">▶ INICIAR</button>
-            <button onclick="resetTimer()">↺ RESETAR</button>
-            <button class="btn-danger" onclick="openResetModal()">🗑 ZERAR SESSÕES</button>
+            <button type="button" id="startPauseBtn">▶ INICIAR</button>
+            <button type="button" id="resetBtn">↺ RESETAR</button>
+            <button type="button" id="openResetModalBtn" class="btn-danger">🗑 ZERAR SESSÕES</button>
         </div>
 
         <div class="xp-container">
@@ -52,8 +55,8 @@
                 <input type="number" id="cfg-long" value="20" min="5" max="60">
             </label>
         </div>
-        <button onclick="applyConfig()">✔ APLICAR</button>
-        <span id="config-feedback" class="config-feedback">✔ Aplicado!</span>
+        <button type="button" id="applyConfigBtn">✔ APLICAR</button>
+        <span id="config-feedback" class="config-feedback" role="status">✔ Aplicado!</span>
     </div>
 
     <div id="message-container">
@@ -67,29 +70,29 @@
             Simples, eficaz e comprovado contra procrastinação e fadiga mental.</p>
     </article>
 
-    <!-- Toast -->
-    <div id="toast">
+    <!-- Toast: role="status" avisa leitores de tela sem interromper o que estiver sendo lido -->
+    <div id="toast" role="status" aria-live="polite">
         <div class="toast-icon" id="toast-icon"></div>
         <div class="toast-title" id="toast-title"></div>
         <div class="toast-sub" id="toast-sub"></div>
-        <button class="toast-btn" id="toast-btn" onclick="dismissToast()"></button>
+        <button type="button" class="toast-btn" id="toast-btn"></button>
     </div>
 
     <!-- Modal de confirmação de reset -->
-    <div id="modal-overlay" class="modal-overlay" onclick="closeResetModal()">
-        <div class="modal" onclick="event.stopPropagation()">
+    <div id="modal-overlay" class="modal-overlay">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
             <div class="modal-icon">⚠️</div>
-            <div class="modal-title">ZERAR PROGRESSO?</div>
+            <div class="modal-title" id="modal-title">ZERAR PROGRESSO?</div>
             <div class="modal-sub">Todas as sessões serão apagadas e você voltará ao nível 1. Essa ação não pode ser desfeita.</div>
             <div class="modal-actions">
-                <button class="modal-btn-cancel" onclick="closeResetModal()">CANCELAR</button>
-                <button class="modal-btn-confirm btn-danger" onclick="confirmResetSessions()">SIM, ZERAR</button>
+                <button type="button" class="modal-btn-cancel" id="modalCancelBtn">CANCELAR</button>
+                <button type="button" class="modal-btn-confirm btn-danger" id="modalConfirmBtn">SIM, ZERAR</button>
             </div>
         </div>
     </div>
 
     <footer>
-        Criado: 2026 | <a href="https://github.com/CarlosdaniDev" target="_blank">CarlosDaniDev</a> — ADS_Dev_Uninter
+        Criado: 2026 | <a href="https://github.com/CarlosdaniDev" target="_blank" rel="noopener">CarlosDaniDev</a> — ADS_Dev_Uninter
     </footer>
 
     <script src="script.js"></script>

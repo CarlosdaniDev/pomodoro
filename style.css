@@ -11,10 +11,15 @@
 }
 
 body {
-    background: linear-gradient(rgba(15, 23, 42, 0.36), rgba(15, 23, 42, 0.34)),
-        url('https://png.pngtree.com/background/20240824/original/pngtree-luxury-car-parked-in-front-of-a-contemporary-masterpiece-a-stunning-picture-image_10222969.jpg');
-    background-size: cover;
-    background-position: center;
+    /* Fundo montado só com gradientes, sem imagem externa: uma foto de banco
+       de imagens hotlinkada de outro domínio é um link que pode cair a
+       qualquer momento (e cujos direitos de uso não dá pra garantir). O
+       gradiente entrega a mesma vibe "terminal escuro com brilho neon" sem
+       essa dependência e ainda carrega mais rápido. */
+    background:
+        radial-gradient(circle at 18% 20%, rgba(0, 210, 255, 0.16), transparent 45%),
+        radial-gradient(circle at 82% 0%, rgba(16, 185, 129, 0.12), transparent 40%),
+        linear-gradient(160deg, #0f172a 0%, #111c33 45%, #0b1220 100%);
     background-attachment: fixed;
     margin: 0;
     padding: 0;
@@ -36,6 +41,17 @@ header h1 {
     -webkit-text-fill-color: transparent;
     filter: drop-shadow(0 0 10px rgba(0, 210, 255, 0.5));
     text-align: center;
+}
+
+/* ── ACESSIBILIDADE: FOCO VISÍVEL ──
+   :focus-visible só aparece na navegação por teclado (Tab), não em cliques
+   de mouse — assim quem usa teclado sempre sabe onde está, sem poluir a
+   interface para quem usa o mouse. */
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
 }
 
 /* ── DASHBOARD ── */
@@ -259,8 +275,9 @@ footer a:hover {
     }
 
     body {
+        /* "fixed" pode causar engasgos ao rolar em navegadores mobile,
+           mesmo sem imagem — "scroll" é mais leve nesses aparelhos */
         background-attachment: scroll;
-        background-position: 40% center;
     }
 
     .timer-display {

@@ -1,31 +1,93 @@
+'use strict';
+
+/* ─────────────────────────────────────────
+   ARMAZENAMENTO SEGURO
+   Em modo privado (principalmente no Safari), o localStorage pode
+   lançar exceção ao tentar gravar. Esses wrappers evitam que isso
+   derrube o app inteiro — na pior das hipóteses o progresso só não
+   fica salvo entre sessões.
+───────────────────────────────────────── */
+function safeGet(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch (e) {
+        console.warn('LocalStorage indisponível para leitura:', e.message);
+        return null;
+    }
+}
+
+function safeSet(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch (e) {
+        console.warn('LocalStorage indisponível para escrita:', e.message);
+    }
+}
+
+function safeRemove(key) {
+    try {
+        localStorage.removeItem(key);
+    } catch (e) {
+        console.warn('LocalStorage indisponível para remoção:', e.message);
+    }
+}
+
+/* Mantém um número dentro do intervalo válido do campo (os atributos
+   min/max do HTML só protegem o clique nas setinhas do input; nada
+   impede alguém de digitar "0" ou "-5" direto no teclado). */
+function clamp(value, min, max, fallback) {
+    if (Number.isNaN(value)) return fallback;
+    return Math.min(Math.max(value, min), max);
+}
+
 /* ─────────────────────────────────────────
    CONFIGURAÇÕES (padrão)
 ───────────────────────────────────────── */
 let cfg = loadConfig();
 
 function loadConfig() {
-    const saved = localStorage.getItem('pomodoroConfig');
-    if (saved) return JSON.parse(saved);
+    const saved = safeGet('pomodoroConfig');
+    if (saved) {
+        try {
+            return JSON.parse(saved);
+        } catch (e) {
+            console.warn('Config salva estava corrompida, voltando ao padrão.', e.message);
+        }
+    }
     return { focus: 25, short: 5, long: 20 };
 }
 
 function applyConfig() {
-    const focus = parseInt(document.getElementById('cfg-focus').value) || 25;
-    const short = parseInt(document.getElementById('cfg-short').value) || 5;
-    const long  = parseInt(document.getElementById('cfg-long').value)  || 20;
+    const focusInput = document.getElementById('cfg-focus');
+    const shortInput = document.getElementById('cfg-short');
+    const longInput  = document.getElementById('cfg-long');
+
+    const focus = clamp(parseInt(focusInput.value, 10), 1, 90, cfg.focus);
+    const short = clamp(parseInt(shortInput.value, 10), 1, 30, cfg.short);
+    const long  = clamp(parseInt(longInput.value, 10), 5, 60, cfg.long);
+
+    // Se o usuário digitou algo fora do limite, os campos refletem o valor
+    // corrigido — assim ele vê que o número foi ajustado, não apenas ignorado.
+    focusInput.value = focus;
+    shortInput.value = short;
+    longInput.value  = long;
 
     cfg = { focus, short, long };
-    localStorage.setItem('pomodoroConfig', JSON.stringify(cfg));
+    safeSet('pomodoroConfig', JSON.stringify(cfg));
 
-    // Só reinicia o display se o timer não estiver rodando
+    // Só recalcula o tempo em tela se o timer estiver parado — mudar a duração
+    // de uma sessão que já está correndo não faz sentido.
     if (!isRunning) {
-        timeLeft = isBreak ? (currentBreakDuration === cfg.long * 60 ? cfg.long * 60 : cfg.short * 60) : cfg.focus * 60;
-        if (!isBreak) timeLeft = cfg.focus * 60;
+        if (isBreak) {
+            timeLeft = (breakType === 'long' ? cfg.long : cfg.short) * 60;
+            currentBreakDuration = timeLeft;
+        } else {
+            timeLeft = cfg.focus * 60;
+        }
         updateDisplay();
-        showConfigToast();
-    } else {
-        showConfigToast();
     }
+
+    showConfigToast();
 }
 
 function showConfigToast() {
@@ -42,9 +104,11 @@ let timer                = null;
 let timeLeft             = cfg.focus * 60;
 let isRunning            = false;
 let isBreak              = false;
+let breakType            = 'short'; // 'short' | 'long' — evita ter que "adivinhar" o tipo de pausa comparando durações
 let currentBreakDuration = cfg.short * 60;
-let pomodoroCount        = parseInt(localStorage.getItem('totalPomodoros')) || 0;
+let pomodoroCount        = parseInt(safeGet('totalPomodoros'), 10) || 0;
 let wakeLock             = null;
+let lastFocusedElement   = null; // quem estava focado antes de abrir o modal, para devolver o foco depois
 
 const LEVEL_TITLES = [
     "Iniciante", "Aprendiz", "Focado", "Determinado",
@@ -78,18 +142,41 @@ function getTodayKey() {
 }
 
 function getTodayCount() {
-    return parseInt(localStorage.getItem(getTodayKey())) || 0;
+    return parseInt(safeGet(getTodayKey()), 10) || 0;
 }
 
 function incrementTodayCount() {
     const key = getTodayKey();
     const current = getTodayCount();
-    localStorage.setItem(key, current + 1);
+    safeSet(key, current + 1);
 }
 
 function updateTodayDisplay() {
     const el = document.getElementById('today-counter');
     if (el) el.innerHTML = `HOJE: <strong>${getTodayCount()}</strong>`;
+}
+
+/* Chaves de dias antigos (pomodoro-2026-3-14, etc.) nunca eram apagadas e
+   ficariam se acumulando no localStorage indefinidamente. Uma vez por
+   carregamento, removemos o que passou de 30 dias. */
+function cleanupOldDailyKeys(daysToKeep = 30) {
+    try {
+        const prefix = 'pomodoro-';
+        const now = new Date();
+
+        Object.keys(localStorage)
+            .filter((key) => key.startsWith(prefix))
+            .forEach((key) => {
+                const [year, month, day] = key.slice(prefix.length).split('-').map(Number);
+                if ([year, month, day].some(Number.isNaN)) return;
+
+                const keyDate = new Date(year, month, day);
+                const diasDeDiferenca = (now - keyDate) / 86400000;
+                if (diasDeDiferenca > daysToKeep) safeRemove(key);
+            });
+    } catch (e) {
+        console.warn('Não foi possível limpar chaves antigas:', e.message);
+    }
 }
 
 /* ─────────────────────────────────────────
@@ -103,11 +190,10 @@ function requestNotificationPermission() {
 
 function sendNotification(title, body) {
     if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification(title, {
-            body,
-            icon: 'https://em-content.zobj.net/source/apple/354/tomato_1f345.png',
-            silent: false
-        });
+        // Sem ícone customizado de propósito: depender de uma imagem hospedada
+        // em outro domínio é um ponto de falha desnecessário para um aviso do
+        // sistema — o navegador já usa um ícone padrão sem isso.
+        new Notification(title, { body, silent: false });
     }
 }
 
@@ -128,7 +214,7 @@ function updateTabTitle() {
 /* ─────────────────────────────────────────
    INICIALIZAÇÃO
 ───────────────────────────────────────── */
-window.onload = () => {
+function init() {
     // Aplica config salva nos inputs
     document.getElementById('cfg-focus').value = cfg.focus;
     document.getElementById('cfg-short').value = cfg.short;
@@ -140,23 +226,27 @@ window.onload = () => {
     updateTodayDisplay();
     updateDisplay();
     requestNotificationPermission();
+    cleanupOldDailyKeys();
+    initEventListeners();
 
-    // Retoma timer se a página foi recarregada com timer ativo
-    const savedEndTime = localStorage.getItem('pomodoroEndTime');
+    // Retoma o timer se a página foi recarregada com uma sessão em andamento
+    const savedEndTime = safeGet('pomodoroEndTime');
     if (savedEndTime) {
         const remaining = Math.round((savedEndTime - Date.now()) / 1000);
         if (remaining > 0) {
             timeLeft = remaining;
             startTimer();
         } else {
-            localStorage.removeItem('pomodoroEndTime');
+            safeRemove('pomodoroEndTime');
         }
     }
 
-    // Page Visibility API
+    // Page Visibility API: o navegador pausa o setInterval (e libera o Wake
+    // Lock) quando a aba fica em segundo plano. Ao voltar, recalculamos o
+    // tempo real a partir do timestamp salvo e pedimos a tela acesa de novo.
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && isRunning) {
-            const saved = localStorage.getItem('pomodoroEndTime');
+            const saved = safeGet('pomodoroEndTime');
             if (saved) {
                 const remaining = Math.round((saved - Date.now()) / 1000);
                 if (remaining > 0) {
@@ -164,9 +254,38 @@ window.onload = () => {
                     updateDisplay();
                 }
             }
+            requestWakeLock();
         }
     });
-};
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+/* Centraliza todos os cliques que antes eram atributos onclick="" no HTML.
+   Isso deixa o HTML mais limpo, evita repetir lógica inline e permite usar
+   uma Content Security Policy mais restrita no futuro, já que não há mais
+   JavaScript embutido nos atributos. */
+function initEventListeners() {
+    document.getElementById('startPauseBtn').addEventListener('click', toggleStartPause);
+    document.getElementById('resetBtn').addEventListener('click', resetTimer);
+    document.getElementById('openResetModalBtn').addEventListener('click', openResetModal);
+    document.getElementById('applyConfigBtn').addEventListener('click', applyConfig);
+    document.getElementById('toast-btn').addEventListener('click', dismissToast);
+    document.getElementById('modalCancelBtn').addEventListener('click', closeResetModal);
+    document.getElementById('modalConfirmBtn').addEventListener('click', confirmResetSessions);
+
+    const overlay = document.getElementById('modal-overlay');
+    overlay.addEventListener('click', (event) => {
+        // Fecha só quando o clique acontece no fundo escurecido, não dentro da caixa
+        if (event.target === overlay) closeResetModal();
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (!overlay.classList.contains('modal--show')) return;
+        if (event.key === 'Escape') closeResetModal();
+        if (event.key === 'Tab') trapFocusInModal(event);
+    });
+}
 
 /* ─────────────────────────────────────────
    TIMER
@@ -181,7 +300,7 @@ function startTimer() {
     if (timerEl) timerEl.classList.add('running');
 
     const endTime = Date.now() + (timeLeft * 1000);
-    localStorage.setItem('pomodoroEndTime', endTime);
+    safeSet('pomodoroEndTime', endTime);
 
     timer = setInterval(() => {
         const remaining = Math.round((endTime - Date.now()) / 1000);
@@ -191,7 +310,7 @@ function startTimer() {
             timer = null;
             isRunning = false;
             timeLeft = 0;
-            localStorage.removeItem('pomodoroEndTime');
+            safeRemove('pomodoroEndTime');
             releaseWakeLock();
             updateDisplay();
             updateTabTitle();
@@ -211,7 +330,7 @@ function pauseTimer() {
     clearInterval(timer);
     timer = null;
     isRunning = false;
-    localStorage.removeItem('pomodoroEndTime');
+    safeRemove('pomodoroEndTime');
     releaseWakeLock();
     updateStartPauseBtn();
     updateTabTitle();
@@ -233,7 +352,7 @@ function resetTimer() {
     clearInterval(timer);
     timer = null;
     isRunning = false;
-    localStorage.removeItem('pomodoroEndTime');
+    safeRemove('pomodoroEndTime');
     releaseWakeLock();
     updateStartPauseBtn();
     updateTabTitle();
@@ -304,6 +423,7 @@ function setFocus() {
 function setShortBreak() {
     updatePhrase('break');
     isBreak = true;
+    breakType = 'short';
     currentBreakDuration = cfg.short * 60;
     timeLeft = currentBreakDuration;
     updateDisplay();
@@ -313,6 +433,7 @@ function setShortBreak() {
 function setLongBreak() {
     updatePhrase('break');
     isBreak = true;
+    breakType = 'long';
     currentBreakDuration = cfg.long * 60;
     timeLeft = currentBreakDuration;
     updateDisplay();
@@ -355,7 +476,7 @@ function updateStats() {
     const xpBar     = document.getElementById('xp-bar');
     const levelEl   = document.getElementById('level');
 
-    localStorage.setItem('totalPomodoros', pomodoroCount);
+    safeSet('totalPomodoros', pomodoroCount);
 
     if (counterEl) counterEl.innerHTML = `SESSÕES CONCLUÍDAS: <strong>#${pomodoroCount}</strong>`;
 
@@ -398,22 +519,54 @@ function dismissToast() {
 }
 
 /* ─────────────────────────────────────────
-   RESET DE SESSÕES
+   RESET DE SESSÕES (com foco acessível)
 ───────────────────────────────────────── */
 function openResetModal() {
     const overlay = document.getElementById('modal-overlay');
-    if (overlay) overlay.classList.add('modal--show');
+    if (!overlay) return;
+
+    lastFocusedElement = document.activeElement;
+    overlay.classList.add('modal--show');
+
+    // Move o foco para dentro do modal assim que ele aparece — importante
+    // para quem navega só pelo teclado ou usa leitor de tela.
+    const cancelBtn = document.getElementById('modalCancelBtn');
+    if (cancelBtn) cancelBtn.focus();
 }
 
 function closeResetModal() {
     const overlay = document.getElementById('modal-overlay');
     if (overlay) overlay.classList.remove('modal--show');
+
+    // Devolve o foco para o botão que abriu o modal
+    if (lastFocusedElement) lastFocusedElement.focus();
+}
+
+/* Enquanto o modal está aberto, o Tab não pode "vazar" para botões que
+   ficaram por baixo dele — isso é o mínimo esperado de um diálogo modal. */
+function trapFocusInModal(event) {
+    const modal = document.querySelector('#modal-overlay .modal');
+    if (!modal) return;
+
+    const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (!focusable.length) return;
+
+    const first = focusable[0];
+    const last  = focusable[focusable.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
 }
 
 function confirmResetSessions() {
     pomodoroCount = 0;
-    localStorage.removeItem('totalPomodoros');
-    localStorage.removeItem(getTodayKey());
+    safeRemove('totalPomodoros');
+    safeRemove(getTodayKey());
     updateStats();
     updateTodayDisplay();
     closeResetModal();
@@ -421,6 +574,9 @@ function confirmResetSessions() {
 
 /* ─────────────────────────────────────────
    WAKE LOCK
+   Mantém a tela acesa enquanto uma sessão está rodando. O próprio
+   navegador libera o lock sozinho quando a aba perde visibilidade —
+   por isso ele é readquirido no listener de visibilitychange, lá em cima.
 ───────────────────────────────────────── */
 async function requestWakeLock() {
     try {
