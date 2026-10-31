@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Cronômetro Pomodoro com gamificação por XP/nível, sons ambiente e persistência de progresso no navegador.">
+    <meta name="description" content="Cronômetro Pomodoro com gamificação por XP/nível, histórico dos últimos 7 dias e progresso salvo no navegador.">
     <meta name="theme-color" content="#0f172a">
     <title>Concentração e Foco</title>
-    <link rel="shortcut icon" href="img/biblioteca-de-livros-de-texto-icone-isolado.png" type="image/x-icon">
+    <link rel="icon" href="icons/icon-192.png" type="image/png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,6 +27,7 @@
         <div class="controls">
             <button type="button" id="startPauseBtn">▶ INICIAR</button>
             <button type="button" id="resetBtn">↺ RESETAR</button>
+            <button type="button" id="skipBtn" title="Pular para a próxima fase sem contar a sessão (atalho: S)">⏭ PULAR FASE</button>
             <button type="button" id="openResetModalBtn" class="btn-danger">🗑 ZERAR SESSÕES</button>
         </div>
 
@@ -37,6 +40,13 @@
             </div>
         </div>
     </div>
+
+    <!-- Histórico dos últimos 7 dias (desenhado pelo script.js) -->
+    <section class="history-panel" aria-labelledby="history-title">
+        <div class="config-title" id="history-title">📊 ÚLTIMOS 7 DIAS</div>
+        <div id="history-chart" class="history-chart" role="img" aria-label="Sessões por dia nos últimos 7 dias"></div>
+        <div id="history-summary" class="history-summary"></div>
+    </section>
 
     <!-- Painel de configurações -->
     <div class="config-panel">
@@ -65,9 +75,11 @@
 
     <article>
         <h2>O que é a Técnica POMODORO?</h2>
-        <p>A Técnica Pomodoro divide o trabalho em blocos de 25 minutos separados por pausas curtas de 5 minutos.
-            Após quatro ciclos, você ganha uma pausa longa de 20 minutos.
-            Simples, eficaz e comprovado contra procrastinação e fadiga mental.</p>
+        <p>A Técnica Pomodoro divide o trabalho em blocos de foco separados por pausas curtas.
+            Após quatro blocos, você ganha uma pausa longa.
+            Os tempos padrão são 25 min de foco, 5 min de pausa curta e 20 min de pausa longa,
+            e você pode mudar todos nas configurações.</p>
+        <p class="shortcuts-hint"><kbd>Espaço</kbd> inicia/pausa · <kbd>S</kbd> pula a fase</p>
     </article>
 
     <!-- Toast: role="status" avisa leitores de tela sem interromper o que estiver sendo lido -->

@@ -49,7 +49,14 @@ function loadConfig() {
     const saved = safeGet('pomodoroConfig');
     if (saved) {
         try {
-            return JSON.parse(saved);
+            // Valida cada campo: um JSON válido mas com valores estranhos
+            // (texto, negativo, absurdo) não pode quebrar o timer.
+            const parsed = JSON.parse(saved) || {};
+            return {
+                focus: clamp(parseInt(parsed.focus, 10), 1, 90, 25),
+                short: clamp(parseInt(parsed.short, 10), 1, 30, 5),
+                long:  clamp(parseInt(parsed.long, 10), 5, 60, 20)
+            };
         } catch (e) {
             console.warn('Config salva estava corrompida, voltando ao padrão.', e.message);
         }
@@ -85,6 +92,7 @@ function applyConfig() {
             timeLeft = cfg.focus * 60;
         }
         updateDisplay();
+        saveState();
     }
 
     showConfigToast();
@@ -109,6 +117,82 @@ let currentBreakDuration = cfg.short * 60;
 let pomodoroCount        = parseInt(safeGet('totalPomodoros'), 10) || 0;
 let wakeLock             = null;
 let lastFocusedElement   = null; // quem estava focado antes de abrir o modal, para devolver o foco depois
+let endTime              = null; // horário real (ms) em que a fase atual termina, só existe com o timer rodando
+let endTimeout           = null; // alarme extra para o fim da fase, reduz o atraso com a aba em segundo plano
+let audioCtx             = null; // criado/liberado num clique do usuário para o alarme não ser bloqueado
+
+const STATE_KEY = 'pomodoroState';
+
+/* ─────────────────────────────────────────
+   ESTADO DA FASE (sobrevive a recarregar a página)
+   Guarda em que fase estamos (foco, pausa curta ou longa), quanto falta e,
+   se estiver rodando, o horário em que termina. Sem isso, recarregar durante
+   um descanso voltava como "foco" e ainda contava uma sessão a mais.
+───────────────────────────────────────── */
+function saveState() {
+    safeSet(STATE_KEY, JSON.stringify({
+        isBreak,
+        breakType,
+        timeLeft,
+        endTime: isRunning ? endTime : null
+    }));
+}
+
+function restoreState() {
+    safeRemove('pomodoroEndTime'); // chave da versão antiga, não é mais usada
+
+    const raw = safeGet(STATE_KEY);
+    if (!raw) return;
+
+    let saved;
+    try {
+        saved = JSON.parse(raw);
+    } catch (e) {
+        console.warn('Estado salvo estava corrompido, ignorando.', e.message);
+        safeRemove(STATE_KEY);
+        return;
+    }
+    if (!saved || typeof saved !== 'object') return;
+
+    isBreak   = saved.isBreak === true;
+    breakType = saved.breakType === 'long' ? 'long' : 'short';
+    currentBreakDuration = (breakType === 'long' ? cfg.long : cfg.short) * 60;
+
+    const fullDuration = isBreak ? currentBreakDuration : cfg.focus * 60;
+    timeLeft = fullDuration;
+    if (isBreak) updateTimerLabel();
+
+    if (Number.isFinite(saved.endTime)) {
+        // Estava rodando: recalcula pelo relógio real. Se o tempo acabou com a
+        // página fechada, a fase volta ao início e a sessão NÃO é contada.
+        const remaining = Math.ceil((saved.endTime - Date.now()) / 1000);
+        if (remaining > 0) {
+            timeLeft = Math.min(remaining, fullDuration);
+            startTimer();
+        }
+    } else if (Number.isFinite(saved.timeLeft) && saved.timeLeft > 0) {
+        // Estava pausado: devolve o tempo que faltava.
+        timeLeft = Math.min(Math.floor(saved.timeLeft), fullDuration);
+    }
+}
+
+/* ─────────────────────────────────────────
+   ÁUDIO
+   Navegadores (principalmente Safari e Chrome mobile) só deixam tocar som
+   se o AudioContext foi criado/retomado depois de um gesto do usuário. Como o
+   alarme toca no fim do timer, sem clique naquele momento, o contexto é
+   preparado antes, no clique em "Iniciar", e reaproveitado no alarme.
+───────────────────────────────────────── */
+function unlockAudio() {
+    try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        if (!audioCtx) audioCtx = new Ctx();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) {
+        console.log('Audio unlock error:', e);
+    }
+}
 
 const LEVEL_TITLES = [
     "Iniciante", "Aprendiz", "Focado", "Determinado",
@@ -136,13 +220,90 @@ const phrases = {
 /* ─────────────────────────────────────────
    HISTÓRICO DO DIA
 ───────────────────────────────────────── */
+/* Uma chave por dia: pomodoro-ANO-MÊS-DIA (mês de 0 a 11, como o JS devolve). */
+function getDayKey(date) {
+    return `pomodoro-${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
 function getTodayKey() {
-    const d = new Date();
-    return `pomodoro-${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    return getDayKey(new Date());
 }
 
 function getTodayCount() {
     return parseInt(safeGet(getTodayKey()), 10) || 0;
+}
+
+/* Sessões dos últimos 7 dias (do mais antigo ao de hoje), lidas das mesmas
+   chaves diárias que o contador "HOJE" já usava. */
+function getLastDaysHistory(days = 7) {
+    const result = [];
+    const today = new Date();
+    for (let i = days - 1; i >= 0; i--) {
+        // new Date(ano, mês, dia - i) já resolve virada de mês e de ano sozinho
+        const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+        result.push({
+            date: d,
+            count: parseInt(safeGet(getDayKey(d)), 10) || 0
+        });
+    }
+    return result;
+}
+
+const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+function renderHistory() {
+    const chart = document.getElementById('history-chart');
+    if (!chart) return;
+
+    const history = getLastDaysHistory(7);
+    const max = Math.max(1, ...history.map((day) => day.count));
+    const total = history.reduce((sum, day) => sum + day.count, 0);
+
+    chart.textContent = ''; // limpa antes de redesenhar
+    history.forEach((day, index) => {
+        const isToday = index === history.length - 1;
+        const label = isToday ? 'hoje' : WEEKDAYS[day.date.getDay()];
+
+        const col = document.createElement('div');
+        col.className = 'history-col' + (isToday ? ' history-col--today' : '');
+
+        const value = document.createElement('span');
+        value.className = 'history-value';
+        value.textContent = day.count;
+
+        const bar = document.createElement('div');
+        bar.className = 'history-bar';
+        // O dia mais cheio ocupa 70% da coluna (o resto é do número e do rótulo);
+        // altura mínima de 4% para o dia zerado continuar visível como "traço".
+        bar.style.height = Math.max(4, Math.round((day.count / max) * 70)) + '%';
+
+        const name = document.createElement('span');
+        name.className = 'history-label';
+        name.textContent = label;
+
+        col.append(value, bar, name);
+        chart.appendChild(col);
+    });
+
+    const summary = document.getElementById('history-summary');
+    if (summary) summary.textContent = `${total} ${total === 1 ? 'sessão' : 'sessões'} nos últimos 7 dias`;
+
+    // Leitores de tela leem o resumo em texto em vez das barras
+    chart.setAttribute('aria-label',
+        'Sessões por dia: ' + history.map((day, i) =>
+            `${i === history.length - 1 ? 'hoje' : WEEKDAYS[day.date.getDay()]} ${day.count}`
+        ).join(', '));
+}
+
+/* Apaga todos os registros diários (usado ao zerar o progresso). */
+function clearAllDailyKeys() {
+    try {
+        Object.keys(localStorage)
+            .filter((key) => key.startsWith('pomodoro-'))
+            .forEach((key) => safeRemove(key));
+    } catch (e) {
+        console.warn('Não foi possível apagar o histórico:', e.message);
+    }
 }
 
 function incrementTodayCount() {
@@ -189,11 +350,26 @@ function requestNotificationPermission() {
 }
 
 function sendNotification(title, body) {
-    if ('Notification' in window && Notification.permission === 'granted') {
-        // Sem ícone customizado de propósito: depender de uma imagem hospedada
-        // em outro domínio é um ponto de falha desnecessário para um aviso do
-        // sistema — o navegador já usa um ícone padrão sem isso.
-        new Notification(title, { body, silent: false });
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+    // O ícone é um arquivo local do próprio projeto (não depende de outro domínio).
+    const options = { body, silent: false, icon: 'icons/icon-192.png' };
+
+    // No Chrome do Android, `new Notification()` lança erro ("Illegal
+    // constructor"): lá a notificação precisa sair pelo Service Worker. Por
+    // isso tentamos o Service Worker primeiro e usamos o construtor direto
+    // como alternativa (desktop sem SW, por exemplo).
+    const direct = () => {
+        try { new Notification(title, options); }
+        catch (e) { console.log('Notificação indisponível:', e.message); }
+    };
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration()
+            .then((registration) => registration ? registration.showNotification(title, options) : direct())
+            .catch(direct);
+    } else {
+        direct();
     }
 }
 
@@ -224,37 +400,29 @@ function init() {
 
     updateStats();
     updateTodayDisplay();
-    updateDisplay();
-    requestNotificationPermission();
     cleanupOldDailyKeys();
+    renderHistory();
     initEventListeners();
+    registerServiceWorker();
 
-    // Retoma o timer se a página foi recarregada com uma sessão em andamento
-    const savedEndTime = safeGet('pomodoroEndTime');
-    if (savedEndTime) {
-        const remaining = Math.round((savedEndTime - Date.now()) / 1000);
-        if (remaining > 0) {
-            timeLeft = remaining;
-            startTimer();
-        } else {
-            safeRemove('pomodoroEndTime');
-        }
-    }
+    // Retoma a fase (foco/pausa), pausada ou rodando, se a página foi recarregada
+    restoreState();
+    updateDisplay();
+    updateTabTitle();
+
+    // Prepara o áudio no primeiro toque/tecla, para o alarme tocar mesmo se a
+    // página foi retomada por recarregamento (sem clique em "Iniciar").
+    ['click', 'keydown'].forEach((eventName) => {
+        document.addEventListener(eventName, unlockAudio, { once: true });
+    });
 
     // Page Visibility API: o navegador pausa o setInterval (e libera o Wake
     // Lock) quando a aba fica em segundo plano. Ao voltar, recalculamos o
     // tempo real a partir do timestamp salvo e pedimos a tela acesa de novo.
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && isRunning) {
-            const saved = safeGet('pomodoroEndTime');
-            if (saved) {
-                const remaining = Math.round((saved - Date.now()) / 1000);
-                if (remaining > 0) {
-                    timeLeft = remaining;
-                    updateDisplay();
-                }
-            }
-            requestWakeLock();
+            tick(); // atualiza o display e, se o tempo já acabou, encerra a fase na hora
+            if (isRunning) requestWakeLock();
         }
     });
 }
@@ -268,6 +436,7 @@ document.addEventListener('DOMContentLoaded', init);
 function initEventListeners() {
     document.getElementById('startPauseBtn').addEventListener('click', toggleStartPause);
     document.getElementById('resetBtn').addEventListener('click', resetTimer);
+    document.getElementById('skipBtn').addEventListener('click', skipPhase);
     document.getElementById('openResetModalBtn').addEventListener('click', openResetModal);
     document.getElementById('applyConfigBtn').addEventListener('click', applyConfig);
     document.getElementById('toast-btn').addEventListener('click', dismissToast);
@@ -281,9 +450,51 @@ function initEventListeners() {
     });
 
     document.addEventListener('keydown', (event) => {
-        if (!overlay.classList.contains('modal--show')) return;
-        if (event.key === 'Escape') closeResetModal();
-        if (event.key === 'Tab') trapFocusInModal(event);
+        if (overlay.classList.contains('modal--show')) {
+            if (event.key === 'Escape') closeResetModal();
+            if (event.key === 'Tab') trapFocusInModal(event);
+            return; // com o modal aberto, os atalhos do timer ficam desligados
+        }
+        handleShortcuts(event);
+    });
+}
+
+/* Atalhos: Espaço inicia/pausa e S pula a fase.
+   - Tudo fica desligado enquanto a pessoa digita num campo (senão o "s" de
+     uma digitação pularia a fase) e quando há Ctrl/Alt/Meta apertado (não
+     atrapalha os atalhos do navegador).
+   - O Espaço também fica desligado com o foco num botão ou link, porque
+     ali ele já tem função própria: aciona o próprio botão.
+   - O S funciona mesmo com o foco num botão. Depois de clicar em "Iniciar"
+     o foco fica nesse botão, e o atalho precisa continuar valendo. */
+function handleShortcuts(event) {
+    if (event.ctrlKey || event.altKey || event.metaKey || event.repeat) return;
+
+    const target = event.target;
+    const tag = target && target.tagName;
+    const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || (target && target.isContentEditable);
+    if (isTyping) return;
+
+    const isClickable = tag === 'BUTTON' || tag === 'A';
+
+    if (event.code === 'Space') {
+        if (isClickable) return; // o navegador já aciona o botão/link focado
+        event.preventDefault();  // evita rolar a página
+        toggleStartPause();
+    } else if (event.key === 's' || event.key === 'S') {
+        skipPhase();
+    }
+}
+
+/* Registra o Service Worker (cache para funcionar offline e notificações no
+   celular). Só funciona em HTTPS ou localhost, então em qualquer outro caso
+   (como abrir o arquivo direto) o app segue normal, sem o SW. */
+function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    if (!window.isSecureContext) return; // HTTPS, localhost ou 127.0.0.1
+
+    navigator.serviceWorker.register('sw.js').catch((err) => {
+        console.warn('Service Worker não registrado:', err.message);
     });
 }
 
@@ -299,48 +510,86 @@ function startTimer() {
     const timerEl = document.getElementById('timer');
     if (timerEl) timerEl.classList.add('running');
 
-    const endTime = Date.now() + (timeLeft * 1000);
-    safeSet('pomodoroEndTime', endTime);
+    // Se o aviso de fim de fase ainda estiver na tela (e a pessoa iniciou pelo
+    // botão principal em vez do botão do aviso), esconde o aviso.
+    const toast = document.getElementById('toast');
+    if (toast) toast.classList.remove('toast--show');
 
-    timer = setInterval(() => {
-        const remaining = Math.round((endTime - Date.now()) / 1000);
+    endTime = Date.now() + (timeLeft * 1000);
+    saveState();
 
-        if (remaining <= 0) {
-            clearInterval(timer);
-            timer = null;
-            isRunning = false;
-            timeLeft = 0;
-            safeRemove('pomodoroEndTime');
-            releaseWakeLock();
-            updateDisplay();
-            updateTabTitle();
-            updateStartPauseBtn();
-            if (timerEl) timerEl.classList.remove('running');
-            handleTimerEnd();
-        } else {
-            timeLeft = remaining;
-            updateDisplay();
-            updateTabTitle();
-        }
-    }, 1000);
+    timer = setInterval(tick, 1000);
+    // Segundo alarme exatamente no fim: com a aba em segundo plano o setInterval
+    // pode ser espaçado pelo navegador, e esse reduz o atraso do aviso.
+    endTimeout = setTimeout(tick, (timeLeft * 1000) + 50);
+}
+
+/* Roda a cada segundo (e ao voltar para a aba). Sempre calcula pelo relógio
+   real, nunca "subtraindo 1" — por isso não acumula atraso. */
+function tick() {
+    if (!isRunning) return;
+
+    const remaining = Math.ceil((endTime - Date.now()) / 1000);
+    if (remaining <= 0) {
+        finishTimer();
+    } else {
+        timeLeft = remaining;
+        updateDisplay();
+        updateTabTitle();
+    }
+}
+
+function clearTimers() {
+    clearInterval(timer);
+    timer = null;
+    clearTimeout(endTimeout);
+    endTimeout = null;
+}
+
+function finishTimer() {
+    clearTimers();
+    isRunning = false;
+    endTime = null;
+    timeLeft = 0;
+    releaseWakeLock();
+    updateDisplay();
+    updateTabTitle();
+    updateStartPauseBtn();
+
+    const timerEl = document.getElementById('timer');
+    if (timerEl) timerEl.classList.remove('running');
+
+    handleTimerEnd();
 }
 
 function pauseTimer() {
     if (!isRunning) return;
-    clearInterval(timer);
-    timer = null;
+
+    // Guarda o tempo exato que faltava no momento da pausa (o display pode
+    // estar até 1s atrasado em relação ao relógio real).
+    timeLeft = Math.max(1, Math.ceil((endTime - Date.now()) / 1000));
+    clearTimers();
     isRunning = false;
-    safeRemove('pomodoroEndTime');
+    endTime = null;
     releaseWakeLock();
+    updateDisplay();
     updateStartPauseBtn();
     updateTabTitle();
+    saveState();
 
     const timerEl = document.getElementById('timer');
     if (timerEl) timerEl.classList.remove('running');
 }
 
 function toggleStartPause() {
-    isRunning ? pauseTimer() : startTimer();
+    if (isRunning) {
+        pauseTimer();
+    } else {
+        // Ações que o navegador só permite depois de um clique do usuário
+        unlockAudio();
+        requestNotificationPermission();
+        startTimer();
+    }
 }
 
 function updateStartPauseBtn() {
@@ -349,10 +598,9 @@ function updateStartPauseBtn() {
 }
 
 function resetTimer() {
-    clearInterval(timer);
-    timer = null;
+    clearTimers();
     isRunning = false;
-    safeRemove('pomodoroEndTime');
+    endTime = null;
     releaseWakeLock();
     updateStartPauseBtn();
     updateTabTitle();
@@ -362,11 +610,40 @@ function resetTimer() {
 
     timeLeft = isBreak ? currentBreakDuration : cfg.focus * 60;
     updateDisplay();
+    saveState();
+}
+
+/* Pula para a próxima fase SEM contar sessão nem dar XP (só a sessão de foco
+   concluída até o fim conta). Foco pulado → pausa curta; descanso pulado →
+   foco. A nova fase fica parada, esperando o "Iniciar". */
+function skipPhase() {
+    clearTimers();
+    isRunning = false;
+    endTime = null;
+    releaseWakeLock();
+
+    const timerEl = document.getElementById('timer');
+    if (timerEl) timerEl.classList.remove('running');
+
+    const toast = document.getElementById('toast');
+    if (toast) toast.classList.remove('toast--show');
+
+    if (isBreak) {
+        setFocus();
+    } else {
+        setShortBreak();
+    }
+
+    updateStartPauseBtn();
+    updateTabTitle();
+    saveState();
 }
 
 function playAlarm() {
     try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        unlockAudio();
+        const ctx = audioCtx;
+        if (!ctx) return;
         // Três bipes curtos
         [0, 0.35, 0.7].forEach(offset => {
             const osc  = ctx.createOscillator();
@@ -380,7 +657,6 @@ function playAlarm() {
             osc.start(ctx.currentTime + offset);
             osc.stop(ctx.currentTime + offset + 0.3);
         });
-        setTimeout(() => ctx.close(), 2000);
     } catch(e) { console.log('Alarm error:', e); }
 }
 
@@ -392,6 +668,7 @@ function handleTimerEnd() {
         incrementTodayCount();
         updateStats();
         updateTodayDisplay();
+        renderHistory();
 
         if (pomodoroCount % 4 === 0) {
             setLongBreak();
@@ -407,6 +684,8 @@ function handleTimerEnd() {
         showToast('break-done');
         sendNotification('⚡ Descanso encerrado!', 'Foco máximo. Vamos lá.');
     }
+
+    saveState(); // grava a nova fase já com o tempo cheio, parada
 }
 
 /* ─────────────────────────────────────────
@@ -515,6 +794,7 @@ function showToast(type) {
 function dismissToast() {
     const toast = document.getElementById('toast');
     if (toast) toast.classList.remove('toast--show');
+    unlockAudio();
     startTimer();
 }
 
@@ -566,9 +846,10 @@ function trapFocusInModal(event) {
 function confirmResetSessions() {
     pomodoroCount = 0;
     safeRemove('totalPomodoros');
-    safeRemove(getTodayKey());
+    clearAllDailyKeys(); // inclui o histórico dos 7 dias, como o aviso do modal diz
     updateStats();
     updateTodayDisplay();
+    renderHistory();
     closeResetModal();
 }
 
