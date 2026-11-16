@@ -1,53 +1,83 @@
-# 🎯 Concentração e Foco | Pomodoro
+# Concentração e Foco | Pomodoro Timer
 
-Um cronômetro Pomodoro com visual de terminal escuro, XP, níveis e histórico semanal, feito em HTML, CSS e JavaScript puros, sem bibliotecas nem framework. Instalável como app (PWA) e funciona offline.
+**A Pomodoro timer with a dark terminal look, XP levels and a weekly history chart, built with plain HTML, CSS and JavaScript (no libraries, no framework). Installable as a PWA and works offline.**
 
-> **Status do projeto:** funcional e em evolução.
+🌐 **Live demo:** [carlosdanidev.github.io/pomodoro](https://carlosdanidev.github.io/pomodoro/)
 
-## 🛠️ Tecnologias
-* **HTML5/CSS3**: estrutura e layout responsivo.
-* **JavaScript (ES6+)**: lógica do timer, estado e interface.
-* **Web APIs**: Wake Lock, Notifications, Page Visibility, Web Audio, LocalStorage e Service Worker.
-* **PWA**: Web App Manifest + Service Worker.
+<!-- Add screenshots to a /docs folder and update the paths below -->
+<p align="center">
+  <img src="docs/timer.jpeg" alt="Timer running" width="35%">
+  <img src="docs/history.jpeg" alt="Weekly history chart" width="35%">
+</p>
 
-## ✨ Funcionalidades
-* Ciclo completo: 4 sessões de foco seguidas de uma pausa longa, com pausa curta entre elas.
-* Tempos de foco, pausa curta e pausa longa configuráveis (e salvos no navegador).
-* **Pular fase** sem contar sessão nem XP.
-* **Atalhos de teclado:** `Espaço` inicia/pausa e `S` pula a fase.
-* Gamificação: XP, níveis (a cada 10 sessões) e contador de sessões do dia.
-* **Histórico dos últimos 7 dias** em gráfico de barras.
-* Aviso ao fim de cada fase: alarme sonoro, notificação do sistema e tempo no título da aba.
-* A tela do aparelho fica acesa enquanto o timer roda (Wake Lock).
-* Recarregar ou fechar a página não perde a fase atual (foco ou descanso), pausada ou rodando.
-* **PWA:** pode ser instalado na tela inicial e abre offline.
+> **Status:** working and in active use. I use it every day to study.
 
-## 💡 Decisões técnicas
+## Features
 
-1. **Contagem pelo relógio real, não por "menos 1 a cada segundo".** O timer guarda o horário em que a fase termina (`Date.now()`) e recalcula o tempo restante a cada tick. Se a aba ficar em segundo plano e o navegador atrasar o `setInterval`, o tempo exibido continua correto ao voltar.
-2. **Estado da fase salvo em um único objeto no `localStorage`** (fase, tempo restante e horário de término). Ao recarregar, o app restaura a fase certa. Se o tempo acabou com a página fechada, a fase volta ao início e a sessão **não** é contada.
-3. **Áudio liberado no clique em "Iniciar".** Navegadores bloqueiam som criado sem gesto do usuário, e o alarme toca no fim do timer, sem clique naquele momento. Por isso o `AudioContext` é preparado antes e reaproveitado.
-4. **Notificação pelo Service Worker.** No Chrome do Android, `new Notification()` lança erro; a notificação precisa sair por `registration.showNotification()`. O código tenta o Service Worker primeiro e usa o construtor direto como alternativa.
-5. **Service Worker com "rede primeiro, cache como reserva".** Online, sempre entrega a versão mais nova dos arquivos; offline, abre a última versão guardada.
-6. **Histórico sem back-end.** Cada dia é uma chave no `localStorage` (`pomodoro-ANO-MÊS-DIA`); o gráfico lê os últimos 7 dias e os registros com mais de 30 dias são apagados.
-7. **Alarme gerado por Web Audio API**, sem arquivo de áudio externo e sem dependência.
-8. **`localStorage` com `try/catch` e valores validados.** Em modo privado ele pode lançar exceção, e configurações corrompidas voltam ao padrão em vez de quebrar o timer.
-9. **Acessibilidade:** modal com foco preso e fechamento por `Esc`, avisos com `aria-live`, resumo em texto do gráfico para leitores de tela, foco visível no teclado e respeito a `prefers-reduced-motion`.
+- Full Pomodoro cycle: 4 focus sessions with short breaks, then a long break.
+- Configurable focus, short break and long break times (saved in the browser).
+- **Skip phase** without counting the session or XP.
+- **Keyboard shortcuts:** `Space` starts/pauses and `S` skips the phase.
+- Gamification: XP, levels (every 10 sessions) and a daily session counter.
+- **Last 7 days history** as a bar chart.
+- End-of-phase alerts: sound alarm, system notification and remaining time in the tab title.
+- The screen stays on while the timer runs (Wake Lock API).
+- Reloading or closing the page doesn't lose the current phase, paused or running.
+- **PWA:** can be installed on the home screen and opens offline.
 
-## ⚠️ Limitações conhecidas
-* **Aba em segundo plano ou tela bloqueada:** o navegador pode atrasar o alarme e a notificação, porque o código só roda quando a página está ativa. O tempo exibido fica correto ao voltar. O PWA melhora a experiência (instalável, offline, notificação confiável no Android), mas não garante aviso na hora com a tela bloqueada.
-* O progresso fica salvo só no navegador do aparelho usado, sem conta e sem sincronização.
+## Tech stack
 
-## 🚀 Como usar
-1. Ajuste os tempos em **Configurações**, se quiser, e clique em **Aplicar**.
-2. Clique em **Iniciar** (ou aperte `Espaço`).
-3. Ao fim de cada fase, use o botão do aviso para seguir para a próxima.
-4. Cada sessão de foco concluída dá XP e sobe seu nível.
+- **HTML5 / CSS3:** structure and responsive layout
+- **JavaScript (ES6+):** timer logic, state and UI
+- **Web APIs:** Wake Lock, Notifications, Page Visibility, Web Audio, LocalStorage, Service Worker
+- **PWA:** Web App Manifest + Service Worker
 
-## 🔧 Melhorias futuras
-- [ ] Sistema de ranks.
-- [ ] Testes automatizados da lógica do timer.
-- [ ] Exportar o histórico.
+## Technical decisions
+
+1. **Counting with the real clock, not "minus 1 every second".** The timer stores the time the phase ends (`Date.now()`) and recalculates the remaining time on every tick. If the tab goes to the background and the browser slows down `setInterval`, the displayed time is still correct when you come back.
+2. **Phase state saved as a single object in `localStorage`** (phase, remaining time and end time). On reload, the app restores the right phase. If the time ran out while the page was closed, the phase restarts and the session is **not** counted.
+3. **Audio unlocked on the "Start" click.** Browsers block sound created without a user gesture, and the alarm plays at the end of the timer, when there is no click. So the `AudioContext` is prepared on the first click and reused.
+4. **Notifications through the Service Worker.** On Chrome for Android, `new Notification()` throws an error; the notification must be sent with `registration.showNotification()`. The code tries the Service Worker first and falls back to the constructor.
+5. **"Network first, cache as fallback" Service Worker.** Online, it always serves the newest files; offline, it opens the last cached version.
+6. **History without a backend.** Each day is a `localStorage` key (`pomodoro-YEAR-MONTH-DAY`); the chart reads the last 7 days, and records older than 30 days are deleted.
+7. **Alarm generated with the Web Audio API**, with no audio file and no dependency.
+8. **Safe `localStorage` access.** Reads are wrapped in `try/catch` and values are validated: in private mode it can throw, and corrupted settings fall back to the defaults instead of breaking the timer.
+9. **Accessibility:** modal with focus trap and `Esc` to close, `aria-live` announcements, a text summary of the chart for screen readers, visible keyboard focus and support for `prefers-reduced-motion`.
+
+## Known limitations
+
+- **Background tab or locked screen:** the browser may delay the alarm and the notification, because the code only runs while the page is active. The displayed time is correct when you return. The PWA improves this (installable, offline, reliable notifications on Android), but can't guarantee an on-time alert with the screen locked.
+- Progress is saved only in the browser of the device being used: no account and no sync.
+
+## Running locally
+
+```bash
+git clone https://github.com/CarlosdaniDev/pomodoro.git
+cd pomodoro
+```
+
+Open `index.html` with a local server (for example, the VS Code **Live Server** extension). A server is needed because Service Workers don't run from `file://`.
+
+## What I learned
+
+- **Browsers don't run timers reliably in the background.** In an earlier version, the timer froze when the tab was in the background. Storing the end time and recalculating the remaining time on every tick fixed it.
+- **Browser autoplay rules:** sound needs a user gesture, which changed how I set up the audio.
+- **Platform differences matter:** on Chrome for Android, notifications have to be sent through the Service Worker (`registration.showNotification()`), so the code tries that first and falls back to the standard API.
+- **Handling failure cases:** `localStorage` can throw or hold bad data, so the app validates everything it reads.
+- **Accessibility is part of the job:** focus management, `aria-live` and reduced-motion support.
+
+## Roadmap
+
+- [ ] Rank system
+- [ ] Automated tests for the timer logic
+- [ ] Export history
 
 ---
-Criado por [CarlosDaniDev](https://github.com/CarlosdaniDev) - Estudante de ADS @ Uninter, 2026.
+
+### 🇧🇷 Em português
+
+Cronômetro Pomodoro com visual de terminal, XP, níveis e histórico semanal, feito em HTML, CSS e JavaScript puros. Pode ser instalado como app (PWA) e funciona offline. Acesse: [carlosdanidev.github.io/pomodoro](https://carlosdanidev.github.io/pomodoro/)
+
+---
+
+Built by **Carlos Daniel**, Systems Analysis and Development student · [GitHub](https://github.com/CarlosdaniDev) · [LinkedIn](https://www.linkedin.com/in/carlos-daniel-5b49b11b2)
